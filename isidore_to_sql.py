@@ -21,6 +21,8 @@ def xls_file(inputfiles, mapping, headerrow=0):
         sheet = wb.sheet_by_index(0) 
         result = []
         headers = []
+        scaled_places = []
+        has_scaled_place = {}
         for colnum in range(sheet.ncols):
             if sheet.cell_value(headerrow,colnum) != '':
                 headers.append(re.sub(r'[ -/]+','_',sheet.cell_value(headerrow,colnum)).strip('_'))
@@ -32,12 +34,10 @@ def xls_file(inputfiles, mapping, headerrow=0):
             for colnum in range(sheet.ncols):
                 cell_type = sheet.cell_type(rownum,colnum)
                 cell = "{}".format(sheet.cell_value(rownum,colnum))
-#                if teller<5 and colnum==2:
-#                    stderr("{} - {} - {}".format(sheet.cell_type(rownum,colnum),sheet.cell_value(rownum,colnum), cell_type))
-                if sheet.cell_type(rownum,colnum)==xlrd.XL_CELL_DATE:
-                    cell_date = xlrd.xldate.xldate_as_datetime(sheet.cell_value(rownum,colnum),0)
-                    stderr(cell_date.strftime("%d-%m-%Y"))
-                    pass
+                # there are no dates in this file
+#                if sheet.cell_type(rownum,colnum)==xlrd.XL_CELL_DATE:
+#                    cell_date = xlrd.xldate.xldate_as_datetime(sheet.cell_value(rownum,colnum),0)
+#                    stderr(cell_date.strftime("%d-%m-%Y"))
                 if cell != '':
                     if cell_type==xlrd.XL_CELL_TEXT:
                         cell = re.sub(r'&','&amp;',cell)
@@ -52,11 +52,15 @@ def xls_file(inputfiles, mapping, headerrow=0):
                             manuscript.append(f'{int(cell)}')
                     else:
                         stderr('Not found')
-                else:
-                    manuscript.append('')
+                    if headers[colnum]=="place_scaled":
+                        stderr(f'scaled place: {cell}')
+                        if not cell in scaled_places:
+                            scaled_places.append(cell)
 #                    if headers[colnum]=="books_included":
 #                        res = try_roman(cell)
 #                        manuscript['books_included_numerical'] = res
+                else:
+                    manuscript.append('')
             result.append(manuscript)
             teller += 1
 
@@ -71,6 +75,17 @@ def xls_file(inputfiles, mapping, headerrow=0):
             output.write("\t".join(row))
             output.write("\n")
         output.write("\\.\n")
+
+        output.write("DROP TABLE scaled_places cascade\n")
+        output.write("CREATE TABLE scaled_places (\n")
+        output.write("        place text\n");
+        output.write(");\n")
+        output.write("COPY scaled_places (place) FROM stdin;\n")
+        scaled_places.sort()
+        for place in scaled_places:
+            output.write(f"{place}\n")
+        output.write("\\.\n")
+        
 
 def try_roman(text):
 #    stderr(text)
