@@ -23,6 +23,7 @@ def xls_file(inputfiles, mapping, headerrow=0):
         headers = []
         scaled_places = []
         has_scaled_place = {}
+        includes_books = {}
         for colnum in range(sheet.ncols):
             if sheet.cell_value(headerrow,colnum) != '':
                 headers.append(re.sub(r'[ -/]+','_',sheet.cell_value(headerrow,colnum)).strip('_'))
@@ -57,9 +58,9 @@ def xls_file(inputfiles, mapping, headerrow=0):
                         if not cell in scaled_places:
                             scaled_places.append(cell)
                         has_scaled_place[mid] = cell
-#                    if headers[colnum]=="books_included":
-#                        res = try_roman(cell)
-#                        manuscript['books_included_numerical'] = res
+                    if headers[colnum]=="books_included":
+                        res = try_roman(cell)
+                        includes_books[mid] = res
                 else:
                     manuscript.append('')
             result.append(manuscript)
@@ -88,7 +89,7 @@ def xls_file(inputfiles, mapping, headerrow=0):
         for place in scaled_places:
             output.write(f"{place}\n")
         output.write("\\.\n")
-        
+
         output.write("\n")
         output.write("DROP TABLE manuscripts_scaled_places;\n")
         output.write("CREATE TABLE manuscripts_scaled_places (\n")
@@ -99,7 +100,30 @@ def xls_file(inputfiles, mapping, headerrow=0):
         for key in has_scaled_place.keys():
             output.write(f"{key}\t{has_scaled_place[key]}\n")
         output.write("\\.\n")
-        
+
+        output.write("\n")
+        output.write("DROP TABLE books;\n")
+        output.write("CREATE TABLE books(\n")
+        output.write("        id int primary key,\n");
+        output.write("        roman text\n");
+        output.write(");\n")
+        output.write("COPY books (id, roman) FROM stdin;\n")
+        for i in range(1,21):
+            output.write(f"{i}\t{roman.toRoman(i)}\n")
+        output.write("\\.\n")
+
+        output.write("\n")
+        output.write("DROP TABLE manuscripts_books_included;\n")
+        output.write("CREATE TABLE manuscripts_books_included (\n")
+        output.write("        m_id text references manuscripts(ID),\n");
+        output.write("        b_id int references books(id)\n");
+        output.write(");\n")
+        output.write("COPY manuscripts_books_included (m_id, b_id) FROM stdin;\n")
+        for key in includes_books.keys():
+            for book in includes_books[key]:
+                output.write(f"{key}\t{book}\n")
+        output.write("\\.\n")
+
         output.write("\n")
 
 def try_roman(text):
