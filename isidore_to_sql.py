@@ -31,6 +31,7 @@ def xls_file(inputfiles, mapping, headerrow=0):
         teller = 0
         for rownum in range((headerrow+1), sheet.nrows):
             manuscript = []
+            mid = "{}".format(sheet.cell_value(rownum,0))
             for colnum in range(sheet.ncols):
                 cell_type = sheet.cell_type(rownum,colnum)
                 cell = "{}".format(sheet.cell_value(rownum,colnum))
@@ -53,9 +54,9 @@ def xls_file(inputfiles, mapping, headerrow=0):
                     else:
                         stderr('Not found')
                     if headers[colnum]=="place_scaled":
-                        stderr(f'scaled place: {cell}')
                         if not cell in scaled_places:
                             scaled_places.append(cell)
+                        has_scaled_place[mid] = cell
 #                    if headers[colnum]=="books_included":
 #                        res = try_roman(cell)
 #                        manuscript['books_included_numerical'] = res
@@ -66,7 +67,8 @@ def xls_file(inputfiles, mapping, headerrow=0):
 
         output.write("DROP TABLE manuscripts cascade;\n")
         output.write("CREATE TABLE manuscripts (\n        ")
-        output.write(" text,\n        ".join(headers))
+        all_headers = " text,\n        ".join(headers).replace("ID text","ID text primary key")
+        output.write(all_headers)
         output.write(" text\n);\n")
         output.write("COPY manuscripts (")
         output.write(", ".join(headers))
@@ -76,9 +78,10 @@ def xls_file(inputfiles, mapping, headerrow=0):
             output.write("\n")
         output.write("\\.\n")
 
-        output.write("DROP TABLE scaled_places cascade\n")
+        output.write("\n")
+        output.write("DROP TABLE scaled_places cascade;\n")
         output.write("CREATE TABLE scaled_places (\n")
-        output.write("        place text\n");
+        output.write("        place text primary key\n");
         output.write(");\n")
         output.write("COPY scaled_places (place) FROM stdin;\n")
         scaled_places.sort()
@@ -86,6 +89,18 @@ def xls_file(inputfiles, mapping, headerrow=0):
             output.write(f"{place}\n")
         output.write("\\.\n")
         
+        output.write("\n")
+        output.write("DROP TABLE manuscripts_scaled_places;\n")
+        output.write("CREATE TABLE manuscripts_scaled_places (\n")
+        output.write("        m_id text references manuscripts(ID),\n");
+        output.write("        place text references scaled_places(place)\n");
+        output.write(");\n")
+        output.write("COPY manuscripts_scaled_places (m_id, place) FROM stdin;\n")
+        for key in has_scaled_place.keys():
+            output.write(f"{key}\t{has_scaled_place[key]}\n")
+        output.write("\\.\n")
+        
+        output.write("\n")
 
 def try_roman(text):
 #    stderr(text)
