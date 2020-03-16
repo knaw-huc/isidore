@@ -11,11 +11,12 @@ import roman;
 from roman import InvalidRomanNumeralError;
 
 output = None
+schema_out = None
 delimiter = ','
 quotechar = ''
 
 
-def xls_file(inputfiles, mapping, headerrow=0):
+def xls_file(inputfiles, headerrow=0):
     for filename in inputfiles:
         wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8") 
         sheet = wb.sheet_by_index(0) 
@@ -66,65 +67,60 @@ def xls_file(inputfiles, mapping, headerrow=0):
             result.append(manuscript)
             teller += 1
 
-        output.write("DROP TABLE manuscripts cascade;\n")
-        output.write("CREATE TABLE manuscripts (\n        ")
+        schema_out.write("DROP TABLE manuscripts cascade;\n")
+        schema_out.write("CREATE TABLE manuscripts (\n        ")
         all_headers = " text,\n        ".join(headers).replace("ID text","ID text primary key")
-        output.write(all_headers)
-        output.write(" text\n);\n")
+        schema_out.write(all_headers)
+        schema_out.write(" text\n);\n\n")
         output.write("COPY manuscripts (")
         output.write(", ".join(headers))
         output.write(") FROM stdin;\n")
         for row in result:
             output.write("\t".join(row))
             output.write("\n")
-        output.write("\\.\n")
+        output.write("\\.\n\n")
 
-        output.write("\n")
-        output.write("DROP TABLE scaled_places cascade;\n")
-        output.write("CREATE TABLE scaled_places (\n")
-        output.write("        place text primary key\n");
-        output.write(");\n")
+        schema_out.write("DROP TABLE scaled_places cascade;\n")
+        schema_out.write("CREATE TABLE scaled_places (\n")
+        schema_out.write("        place text primary key\n");
+        schema_out.write(");\n\n")
         output.write("COPY scaled_places (place) FROM stdin;\n")
         scaled_places.sort()
         for place in scaled_places:
             output.write(f"{place}\n")
-        output.write("\\.\n")
+        output.write("\\.\n\n")
 
-        output.write("\n")
-        output.write("DROP TABLE manuscripts_scaled_places;\n")
-        output.write("CREATE TABLE manuscripts_scaled_places (\n")
-        output.write("        m_id text references manuscripts(ID),\n");
-        output.write("        place text references scaled_places(place)\n");
-        output.write(");\n")
+        schema_out.write("DROP TABLE manuscripts_scaled_places;\n")
+        schema_out.write("CREATE TABLE manuscripts_scaled_places (\n")
+        schema_out.write("        m_id text references manuscripts(ID),\n");
+        schema_out.write("        place text references scaled_places(place)\n");
+        schema_out.write(");\n\n")
         output.write("COPY manuscripts_scaled_places (m_id, place) FROM stdin;\n")
         for key in has_scaled_place.keys():
             output.write(f"{key}\t{has_scaled_place[key]}\n")
-        output.write("\\.\n")
+        output.write("\\.\n\n")
 
-        output.write("\n")
-        output.write("DROP TABLE books;\n")
-        output.write("CREATE TABLE books(\n")
-        output.write("        id int primary key,\n");
-        output.write("        roman text\n");
-        output.write(");\n")
+        schema_out.write("DROP TABLE books cascade;\n")
+        schema_out.write("CREATE TABLE books(\n")
+        schema_out.write("        id int primary key,\n");
+        schema_out.write("        roman text\n");
+        schema_out.write(");\n\n")
         output.write("COPY books (id, roman) FROM stdin;\n")
         for i in range(1,21):
             output.write(f"{i}\t{roman.toRoman(i)}\n")
-        output.write("\\.\n")
+        output.write("\\.\n\n")
 
-        output.write("\n")
-        output.write("DROP TABLE manuscripts_books_included;\n")
-        output.write("CREATE TABLE manuscripts_books_included (\n")
-        output.write("        m_id text references manuscripts(ID),\n");
-        output.write("        b_id int references books(id)\n");
-        output.write(");\n")
+        schema_out.write("DROP TABLE manuscripts_books_included;\n")
+        schema_out.write("CREATE TABLE manuscripts_books_included (\n")
+        schema_out.write("        m_id text references manuscripts(ID),\n");
+        schema_out.write("        b_id int references books(id)\n");
+        schema_out.write(");\n\n")
         output.write("COPY manuscripts_books_included (m_id, b_id) FROM stdin;\n")
         for key in includes_books.keys():
             for book in includes_books[key]:
                 output.write(f"{key}\t{book}\n")
-        output.write("\\.\n")
+        output.write("\\.\n\n")
 
-        output.write("\n")
 
 def try_roman(text):
 #    stderr(text)
@@ -162,12 +158,12 @@ def arguments():
     ap.add_argument('-i', '--inputfile',
                     help="inputfile",
                     default = "20200227_manuscripts_mastersheet_CURRENT.xlsx")
-    ap.add_argument('-m', '--mappingfile',
-                    help="mappingfile (default = mapping.json)",
-                    default = "mapping.json")
     ap.add_argument('-o', '--outputfile',
                     help="outputfile",
-                    default = "isidore_test.sql")
+                    default = "isidore_data.sql")
+    ap.add_argument('-s', '--schema',
+                    help="schema file",
+                    default = "isidore_schema.sql")
     ap.add_argument('-q', '--quotechar',
                     help="quotechar",
                     default = "'" )
@@ -179,32 +175,24 @@ def arguments():
 
 
 def end_prog(code=0):
-    stderr(datetime.today().strftime("%H:%M:%S"))
-    stderr("einde")
+    stderr("einde: {}".format(datetime.today().strftime("%H:%M:%S")))
     sys.exit(code)
 
  
 if __name__ == "__main__":
-    stderr("start")
-    stderr(datetime.today().strftime("%H:%M:%S"))
+    stderr("start: {}".format(datetime.today().strftime("%H:%M:%S")))
 
     args = arguments()
     inputfiles = args['inputfile'].split(',')
     outputfile = args['outputfile']
+    schemafile = args['schema']
     headerrow = args['headerrow']
     quotechar = args['quotechar']
 
     output = open(outputfile, "w", encoding="utf-8")
+    schema_out = open(schemafile, "w", encoding="utf-8")
  
-    '''
-    mapping_etc = {}
-    mapping = {}
-
-    with open(args['mappingfile']) as f:
-        mapping_etc = json.load(f)
-        mapping = mapping_etc['mapping']
-    '''
-    xls_file(inputfiles, None) # mapping)
+    xls_file(inputfiles)
     
 
     end_prog(0)
