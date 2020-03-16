@@ -117,45 +117,38 @@ def xls_file(inputfiles, headerrow=0):
 
 
 def create_schema(headers):
-     schema_out.write("DROP TABLE manuscripts cascade;\n")
-     schema_out.write("CREATE TABLE manuscripts (\n        ")
-     all_headers = " text,\n        ".join(headers).replace("ID text","ID text primary key")
-     schema_out.write(all_headers)
-     schema_out.write(" text\n);\n\n")
-     #
-     schema_out.write("DROP TABLE scaled_places cascade;\n")
-     schema_out.write("CREATE TABLE scaled_places (\n")
-     schema_out.write("        place text primary key\n");
-     schema_out.write(");\n\n")
-     #
-     schema_out.write("DROP TABLE manuscripts_scaled_places;\n")
-     schema_out.write("CREATE TABLE manuscripts_scaled_places (\n")
-     schema_out.write("        m_id text references manuscripts(ID),\n");
-     schema_out.write("        place text references scaled_places(place)\n");
-     schema_out.write(");\n\n")
-     #
-     schema_out.write("DROP TABLE scaled_dates cascade;\n")
-     schema_out.write("CREATE TABLE scaled_dates (\n")
-     schema_out.write("        date text primary key\n");
-     schema_out.write(");\n\n")
-     #
-     schema_out.write("DROP TABLE manuscripts_scaled_dates;\n")
-     schema_out.write("CREATE TABLE manuscripts_scaled_dates (\n")
-     schema_out.write("        m_id text references manuscripts(ID),\n");
-     schema_out.write("        date text references scaled_dates(date)\n");
-     schema_out.write(");\n\n")
-     #
-     schema_out.write("DROP TABLE books cascade;\n")
-     schema_out.write("CREATE TABLE books(\n")
-     schema_out.write("        id int primary key,\n");
-     schema_out.write("        roman text\n");
-     schema_out.write(");\n\n")
-     #
-     schema_out.write("DROP TABLE manuscripts_books_included;\n")
-     schema_out.write("CREATE TABLE manuscripts_books_included (\n")
-     schema_out.write("        m_id text references manuscripts(ID),\n");
-     schema_out.write("        b_id int references books(id)\n");
-     schema_out.write(");\n\n")
+    headers_2 = []
+    for header in headers:
+        headers_2.append(header + " text")
+    headers_2[0] += " primary key"
+    create_table("manuscripts", headers_2)
+    #
+    create_table("scaled_places",
+            ["place text primary key"])
+    #
+    create_table("manuscripts_scaled_places",
+            ["m_id text references manuscripts(ID)",
+                "place text references scaled_places(place)"])
+    #
+    create_table("scaled_dates",
+            ["date text primary key"])
+    #
+    create_table("manuscripts_scaled_dates",
+            ["m_id text references manuscripts(ID)",
+                "date text references scaled_dates(date)"])
+    #
+    create_table("books",
+            ["id int primary key", "roman text"])
+    #
+    create_table("manuscripts_books_included",
+            ["m_id text references manuscripts(ID)",
+                "b_id int references books(id)"])
+
+def create_table(table, columns):
+     schema_out.write(f"DROP TABLE {table} CASCADE;\n")
+     schema_out.write(f"CREATE TABLE {table} (\n        ")
+     schema_out.write(",\n        ".join(columns))
+     schema_out.write("\n);\n\n")
 
 
 def try_roman(text):
