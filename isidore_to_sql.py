@@ -67,11 +67,7 @@ def xls_file(inputfiles, headerrow=0):
             result.append(manuscript)
             teller += 1
 
-        schema_out.write("DROP TABLE manuscripts cascade;\n")
-        schema_out.write("CREATE TABLE manuscripts (\n        ")
-        all_headers = " text,\n        ".join(headers).replace("ID text","ID text primary key")
-        schema_out.write(all_headers)
-        schema_out.write(" text\n);\n\n")
+        create_schema(headers)
         output.write("COPY manuscripts (")
         output.write(", ".join(headers))
         output.write(") FROM stdin;\n")
@@ -80,46 +76,54 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\n")
         output.write("\\.\n\n")
 
-        schema_out.write("DROP TABLE scaled_places cascade;\n")
-        schema_out.write("CREATE TABLE scaled_places (\n")
-        schema_out.write("        place text primary key\n");
-        schema_out.write(");\n\n")
         output.write("COPY scaled_places (place) FROM stdin;\n")
         scaled_places.sort()
         for place in scaled_places:
             output.write(f"{place}\n")
         output.write("\\.\n\n")
 
-        schema_out.write("DROP TABLE manuscripts_scaled_places;\n")
-        schema_out.write("CREATE TABLE manuscripts_scaled_places (\n")
-        schema_out.write("        m_id text references manuscripts(ID),\n");
-        schema_out.write("        place text references scaled_places(place)\n");
-        schema_out.write(");\n\n")
         output.write("COPY manuscripts_scaled_places (m_id, place) FROM stdin;\n")
         for key in has_scaled_place.keys():
             output.write(f"{key}\t{has_scaled_place[key]}\n")
         output.write("\\.\n\n")
 
-        schema_out.write("DROP TABLE books cascade;\n")
-        schema_out.write("CREATE TABLE books(\n")
-        schema_out.write("        id int primary key,\n");
-        schema_out.write("        roman text\n");
-        schema_out.write(");\n\n")
         output.write("COPY books (id, roman) FROM stdin;\n")
         for i in range(1,21):
             output.write(f"{i}\t{roman.toRoman(i)}\n")
         output.write("\\.\n\n")
 
-        schema_out.write("DROP TABLE manuscripts_books_included;\n")
-        schema_out.write("CREATE TABLE manuscripts_books_included (\n")
-        schema_out.write("        m_id text references manuscripts(ID),\n");
-        schema_out.write("        b_id int references books(id)\n");
-        schema_out.write(");\n\n")
         output.write("COPY manuscripts_books_included (m_id, b_id) FROM stdin;\n")
         for key in includes_books.keys():
             for book in includes_books[key]:
                 output.write(f"{key}\t{book}\n")
         output.write("\\.\n\n")
+
+
+def create_schema(headers):
+     schema_out.write("DROP TABLE manuscripts cascade;\n")
+     schema_out.write("CREATE TABLE manuscripts (\n        ")
+     all_headers = " text,\n        ".join(headers).replace("ID text","ID text primary key")
+     schema_out.write(all_headers)
+     schema_out.write(" text\n);\n\n")
+     schema_out.write("DROP TABLE scaled_places cascade;\n")
+     schema_out.write("CREATE TABLE scaled_places (\n")
+     schema_out.write("        place text primary key\n");
+     schema_out.write(");\n\n")
+     schema_out.write("DROP TABLE manuscripts_scaled_places;\n")
+     schema_out.write("CREATE TABLE manuscripts_scaled_places (\n")
+     schema_out.write("        m_id text references manuscripts(ID),\n");
+     schema_out.write("        place text references scaled_places(place)\n");
+     schema_out.write(");\n\n")
+     schema_out.write("DROP TABLE books cascade;\n")
+     schema_out.write("CREATE TABLE books(\n")
+     schema_out.write("        id int primary key,\n");
+     schema_out.write("        roman text\n");
+     schema_out.write(");\n\n")
+     schema_out.write("DROP TABLE manuscripts_books_included;\n")
+     schema_out.write("CREATE TABLE manuscripts_books_included (\n")
+     schema_out.write("        m_id text references manuscripts(ID),\n");
+     schema_out.write("        b_id int references books(id)\n");
+     schema_out.write(");\n\n")
 
 
 def try_roman(text):
