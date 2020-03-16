@@ -24,6 +24,8 @@ def xls_file(inputfiles, headerrow=0):
         headers = []
         scaled_places = []
         has_scaled_place = {}
+        scaled_dates = []
+        has_scaled_date = {}
         includes_books = {}
         for colnum in range(sheet.ncols):
             if sheet.cell_value(headerrow,colnum) != '':
@@ -59,6 +61,10 @@ def xls_file(inputfiles, headerrow=0):
                         if not cell in scaled_places:
                             scaled_places.append(cell)
                         has_scaled_place[mid] = cell
+                    if headers[colnum]=="date_scaled":
+                        if not cell in scaled_dates:
+                            scaled_dates.append(cell)
+                        has_scaled_date[mid] = cell
                     if headers[colnum]=="books_included":
                         res = try_roman(cell)
                         includes_books[mid] = res
@@ -87,6 +93,17 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{key}\t{has_scaled_place[key]}\n")
         output.write("\\.\n\n")
 
+        output.write("COPY scaled_dates (date) FROM stdin;\n")
+        scaled_dates.sort()
+        for date in scaled_dates:
+            output.write(f"{date}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY manuscripts_scaled_dates (m_id, date) FROM stdin;\n")
+        for key in has_scaled_date.keys():
+            output.write(f"{key}\t{has_scaled_date[key]}\n")
+        output.write("\\.\n\n")
+
         output.write("COPY books (id, roman) FROM stdin;\n")
         for i in range(1,21):
             output.write(f"{i}\t{roman.toRoman(i)}\n")
@@ -105,20 +122,35 @@ def create_schema(headers):
      all_headers = " text,\n        ".join(headers).replace("ID text","ID text primary key")
      schema_out.write(all_headers)
      schema_out.write(" text\n);\n\n")
+     #
      schema_out.write("DROP TABLE scaled_places cascade;\n")
      schema_out.write("CREATE TABLE scaled_places (\n")
      schema_out.write("        place text primary key\n");
      schema_out.write(");\n\n")
+     #
      schema_out.write("DROP TABLE manuscripts_scaled_places;\n")
      schema_out.write("CREATE TABLE manuscripts_scaled_places (\n")
      schema_out.write("        m_id text references manuscripts(ID),\n");
      schema_out.write("        place text references scaled_places(place)\n");
      schema_out.write(");\n\n")
+     #
+     schema_out.write("DROP TABLE scaled_dates cascade;\n")
+     schema_out.write("CREATE TABLE scaled_dates (\n")
+     schema_out.write("        date text primary key\n");
+     schema_out.write(");\n\n")
+     #
+     schema_out.write("DROP TABLE manuscripts_scaled_dates;\n")
+     schema_out.write("CREATE TABLE manuscripts_scaled_dates (\n")
+     schema_out.write("        m_id text references manuscripts(ID),\n");
+     schema_out.write("        date text references scaled_dates(date)\n");
+     schema_out.write(");\n\n")
+     #
      schema_out.write("DROP TABLE books cascade;\n")
      schema_out.write("CREATE TABLE books(\n")
      schema_out.write("        id int primary key,\n");
      schema_out.write("        roman text\n");
      schema_out.write(");\n\n")
+     #
      schema_out.write("DROP TABLE manuscripts_books_included;\n")
      schema_out.write("CREATE TABLE manuscripts_books_included (\n")
      schema_out.write("        m_id text references manuscripts(ID),\n");
