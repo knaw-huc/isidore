@@ -35,6 +35,8 @@ def xls_file(inputfiles, headerrow=0):
         has_scaled_place = {}
         scaled_dates = []
         has_scaled_date = {}
+        content_types = []
+        has_content_type = {}
         includes_books = {}
         for colnum in range(sheet.ncols):
             if sheet.cell_value(headerrow,colnum) != '':
@@ -72,22 +74,40 @@ def xls_file(inputfiles, headerrow=0):
                         if not cell in scaled_places:
                             scaled_places.append(cell)
                         has_scaled_place[mid] = cell
-                    if headers[colnum]=="date_scaled":
+                        manuscript.pop()
+                    elif headers[colnum]=="date_scaled":
                         if not cell in scaled_dates:
                             scaled_dates.append(cell)
                         has_scaled_date[mid] = cell
-                    if headers[colnum]=="books_included":
+                        manuscript.pop()
+                    elif headers[colnum]=="books_included":
                         res = try_roman(cell)
                         includes_books[mid] = res
-                else:
+                        manuscript.pop()
+                    elif headers[colnum]=="content_type":
+                        if not cell in content_types:
+                            content_types.append(cell)
+                        has_content_type[mid] = cell
+                        manuscript.pop()
+                elif not headers[colnum] in ["place_scaled","date_scaled","books_included","content_type"]:
                     manuscript.append('')
+            #handle_content_detail(sheet.cell_value(rownum,27),sheet.cell_value(rownum,28))
             result.append(manuscript)
             teller += 1
 
-        create_schema(headers)
+        headers_2 = []
+        for header in headers:
+            if not header in ["place_scaled","date_scaled","books_included","content_type"]:
+                headers_2.append(header + " text")
+        headers_2[0] += " primary key"
+        create_schema(headers_2)
 
+        headers_2 = []
+        for header in headers:
+            if not header in ["place_scaled","date_scaled","books_included","content_type"]:
+                headers_2.append(header)
         output.write("COPY manuscripts (")
-        output.write(", ".join(headers))
+        output.write(", ".join(headers_2))
         output.write(") FROM stdin;\n")
         for row in result:
             output.write("\t".join(row))
@@ -127,24 +147,32 @@ def xls_file(inputfiles, headerrow=0):
                 output.write(f"{key}\t{book}\n")
         output.write("\\.\n\n")
 
-def getBGColor(book, sheet, row, col):
-    xfx = sheet.cell_xf_index(row, col)
-    xf = book.xf_list[xfx]
-    bgx = xf.background.pattern_colour_index
-    pattern_colour = book.colour_map[bgx]
+        output.write("COPY content_types (content_type) FROM stdin;\n")
+        content_types.sort()
+        for content_type in content_types:
+            output.write(f"{content_type}\n")
+        output.write("\\.\n\n")
 
-    #Actually, despite the name, the background colour is not the background colour.
-    #background_colour_index = xf.background.background_colour_index
-    #background_colour = book.colour_map[background_colour_index]
+        output.write("COPY manuscripts_content_types (m_id, content_type) FROM stdin;\n")
+        for key in has_content_type.keys():
+            output.write(f"{key}\t{has_content_type[key]}\n")
+        output.write("\\.\n\n")
 
-    return pattern_colour
+
+def handle_content_detail(content_detail, content_location):
+    stderr(content_detail)
+    stderr(content_location)
+#    content_detail = f'{content_detail}' # some content is interpreted as float
+#    separate_books = re.split(r', *',books_included)
+#    if len(separate_books)>1:
+#        res = []
+#        for separate_book in separate_books:
+#            res = res + try_roman(separate_book)
+        #stderr(res)
+
 
 def create_schema(headers):
-    headers_2 = []
-    for header in headers:
-        headers_2.append(header + " text")
-    headers_2[0] += " primary key"
-    create_table("manuscripts", headers_2)
+    create_table("manuscripts", headers)
     #
     create_table("scaled_places",
             ["place text primary key"])
@@ -166,6 +194,13 @@ def create_schema(headers):
     create_table("manuscripts_books_included",
             ["m_id text references manuscripts(ID)",
                 "b_id int references books(id)"])
+    #
+    create_table("content_types",
+            ["content_type text primary key"]) 
+    #
+    create_table("manuscripts_content_types",
+            ["m_id text references manuscripts(ID)",
+                "content_type text references content_types(content_type)"])
 
 def create_table(table, columns):
      schema_out.write(f"DROP TABLE {table} CASCADE;\n")
@@ -175,12 +210,9 @@ def create_table(table, columns):
 
 
 def try_roman(text):
-#    stderr(text)
     try:
         n = roman.fromRoman(text)
-#        stderr([n])
         return [n]
-#        stderr(f'{text}: {n}')
     except InvalidRomanNumeralError:
         parts = re.split(r', *', text)
         if len(parts)>1:
@@ -197,6 +229,12 @@ def try_roman(text):
             else:
                 stderr(f'{text} not valid?')
 
+def getBGColor(book, sheet, row, col):
+    xfx = sheet.cell_xf_index(row, col)
+    xf = book.xf_list[xfx]
+    bgx = xf.background.pattern_colour_index
+    pattern_colour = book.colour_map[bgx]
+    return pattern_colour
 
 def clean_string(value):
     return value
