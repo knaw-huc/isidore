@@ -18,7 +18,16 @@ quotechar = ''
 
 def xls_file(inputfiles, headerrow=0):
     for filename in inputfiles:
-        wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8") 
+        # after converting de xlsx sheet to xls, the color information can be extracted and used
+        # not sure if we will do this
+        if filename.endswith("xls"):
+            xls_type = True
+        else:
+            xls_type = False
+        if xls_type:
+            wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8", formatting_info=True)
+        else:
+            wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8")
         sheet = wb.sheet_by_index(0) 
         result = []
         headers = []
@@ -39,10 +48,12 @@ def xls_file(inputfiles, headerrow=0):
             for colnum in range(sheet.ncols):
                 cell_type = sheet.cell_type(rownum,colnum)
                 cell = "{}".format(sheet.cell_value(rownum,colnum))
-                # there are no dates in this file
-#                if sheet.cell_type(rownum,colnum)==xlrd.XL_CELL_DATE:
-#                    cell_date = xlrd.xldate.xldate_as_datetime(sheet.cell_value(rownum,colnum),0)
-#                    stderr(cell_date.strftime("%d-%m-%Y"))
+                if xls_type:
+                    color = getBGColor(wb, sheet, rownum, colnum)
+                    if color:
+                        # will see if we will do something with the color information
+                        # stderr(f'{cell} ({rownum},{colnum}): {color}')
+                        pass
                 if cell != '':
                     if cell_type==xlrd.XL_CELL_TEXT:
                         cell = re.sub(r'&','&amp;',cell)
@@ -74,6 +85,7 @@ def xls_file(inputfiles, headerrow=0):
             teller += 1
 
         create_schema(headers)
+
         output.write("COPY manuscripts (")
         output.write(", ".join(headers))
         output.write(") FROM stdin;\n")
@@ -115,6 +127,17 @@ def xls_file(inputfiles, headerrow=0):
                 output.write(f"{key}\t{book}\n")
         output.write("\\.\n\n")
 
+def getBGColor(book, sheet, row, col):
+    xfx = sheet.cell_xf_index(row, col)
+    xf = book.xf_list[xfx]
+    bgx = xf.background.pattern_colour_index
+    pattern_colour = book.colour_map[bgx]
+
+    #Actually, despite the name, the background colour is not the background colour.
+    #background_colour_index = xf.background.background_colour_index
+    #background_colour = book.colour_map[background_colour_index]
+
+    return pattern_colour
 
 def create_schema(headers):
     headers_2 = []
