@@ -14,6 +14,7 @@ output = None
 schema_out = None
 delimiter = ','
 quotechar = ''
+pattern = re.compile(r'([^(]*)\(([^)]*)\)([^(]*)')
 
 
 def xls_file(inputfiles, headerrow=0):
@@ -38,6 +39,8 @@ def xls_file(inputfiles, headerrow=0):
         content_types = []
         has_content_type = {}
         includes_books = {}
+        location_details = []
+
         for colnum in range(sheet.ncols):
             if sheet.cell_value(headerrow,colnum) != '':
                 headers.append(re.sub(r'[ -/]+','_',sheet.cell_value(headerrow,colnum)).strip('_'))
@@ -46,7 +49,7 @@ def xls_file(inputfiles, headerrow=0):
         teller = 0
         for rownum in range((headerrow+1), sheet.nrows):
             manuscript = []
-            mid = "{}".format(sheet.cell_value(rownum,0))
+            m_id = "{}".format(sheet.cell_value(rownum,0))
             for colnum in range(sheet.ncols):
                 cell_type = sheet.cell_type(rownum,colnum)
                 cell = "{}".format(sheet.cell_value(rownum,colnum))
@@ -73,25 +76,25 @@ def xls_file(inputfiles, headerrow=0):
                     if headers[colnum]=="place_scaled":
                         if not cell in scaled_places:
                             scaled_places.append(cell)
-                        has_scaled_place[mid] = cell
+                        has_scaled_place[m_id] = cell
                         manuscript.pop()
                     elif headers[colnum]=="date_scaled":
                         if not cell in scaled_dates:
                             scaled_dates.append(cell)
-                        has_scaled_date[mid] = cell
+                        has_scaled_date[m_id] = cell
                         manuscript.pop()
                     elif headers[colnum]=="books_included":
                         res = try_roman(cell)
-                        includes_books[mid] = res
+                        includes_books[m_id] = res
                         manuscript.pop()
                     elif headers[colnum]=="content_type":
                         if not cell in content_types:
                             content_types.append(cell)
-                        has_content_type[mid] = cell
+                        has_content_type[m_id] = cell
                         manuscript.pop()
                 elif not headers[colnum] in ["place_scaled","date_scaled","books_included","content_type"]:
                     manuscript.append('')
-            #handle_content_detail(sheet.cell_value(rownum,27),sheet.cell_value(rownum,28))
+            handle_content_detail(location_details,m_id, sheet.cell_value(rownum,27),sheet.cell_value(rownum,28))
             result.append(manuscript)
             teller += 1
 
@@ -158,18 +161,51 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{key}\t{has_content_type[key]}\n")
         output.write("\\.\n\n")
 
+        output.write("COPY manuscripts_details_locations (m_id, details, locations) FROM stdin;\n")
+        for row in location_details:
+            output.write(f"{row[0]}\t{row[1]}\t{row[2]}\n")
+        output.write("\\.\n\n")
 
-def handle_content_detail(content_detail, content_location):
-    stderr(content_detail)
-    stderr(content_location)
-#    content_detail = f'{content_detail}' # some content is interpreted as float
-#    separate_books = re.split(r', *',books_included)
-#    if len(separate_books)>1:
-#        res = []
-#        for separate_book in separate_books:
-#            res = res + try_roman(separate_book)
-        #stderr(res)
-
+def handle_content_detail(location_details,m_id, content_detail, content_location):
+    if not isinstance(content_location, str):
+        content_location = f'{content_location}'
+        if content_location.endswith('.0'):
+            content_location = content_location[0:-2]
+    md = pattern.findall(f'{content_detail}')
+    md_2 = pattern.findall(content_location)
+    if len(md) != len(md_2):
+        stderr(f"{m_id}\t{content_detail}\t{content_location}")
+        location_details.append([m_id,content_detail,content_location])
+        return
+    for li in md:
+        for ti in li:
+            pass
+    for li in md_2:
+        for ti in li:
+            ti_2 = ti.strip(' +)(')
+            if ti_2:
+                pass
+    for i in range(0,len(md)):
+        if len(md[i]) != len(md_2[i]):
+            pass
+        else:
+            for j in range(0,len(md[i])):
+                content = md[i][j].split(r'+')
+                location = md_2[i][j].split(r'+')
+                if len(content) == len(location):
+                    for k in range(0,len(content)):
+                        if content[k].strip(' +)(') or location[k].strip(' +)('):
+                            stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[k].strip(' +)(')}")
+                            location_details.append([m_id,content[k].strip(' +)('),location[k].strip(' +)(')])
+                else:
+                    if len(content) > 1:
+                        for k in range(0,len(content)):
+                            stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[0].strip(' +)(')}")
+                            location_details.append([m_id,content[k].strip(' +)('),location[0].strip(' +)(')])
+                    pass
+    if len(md) == 0:
+        stderr(f'{m_id}\t{content_detail}\t{content_location}')
+        location_details.append([m_id,content_detail,content_location])
 
 def create_schema(headers):
     create_table("manuscripts", headers)
@@ -201,6 +237,11 @@ def create_schema(headers):
     create_table("manuscripts_content_types",
             ["m_id text references manuscripts(ID)",
                 "content_type text references content_types(content_type)"])
+    #
+    create_table("manuscripts_details_locations",
+            ["m_id text references manuscripts(ID)",
+                "details text",
+                "locations text"])
 
 def create_table(table, columns):
      schema_out.write(f"DROP TABLE {table} CASCADE;\n")
@@ -240,7 +281,7 @@ def clean_string(value):
     return value
 
 
-def stderr(text):
+def stderr(text=""):
     sys.stderr.write("{}\n".format(text))
 
 def arguments():
