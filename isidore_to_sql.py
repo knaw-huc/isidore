@@ -15,6 +15,7 @@ schema_out = None
 delimiter = ','
 quotechar = ''
 pattern = re.compile(r'([^(]*)\(([^)]*)\)([^(]*)')
+pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
 
 
 def xls_file(inputfiles, headerrow=0):
@@ -94,7 +95,7 @@ def xls_file(inputfiles, headerrow=0):
                         manuscript.pop()
                 elif not headers[colnum] in ["place_scaled","date_scaled","books_included","content_type"]:
                     manuscript.append('')
-            handle_content_detail(location_details,m_id, sheet.cell_value(rownum,27),sheet.cell_value(rownum,28))
+            handle_content_detail(location_details, m_id, sheet.cell_value(rownum,27), sheet.cell_value(rownum,28))
             result.append(manuscript)
             teller += 1
 
@@ -166,7 +167,95 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{row[0]}\t{row[1]}\t{row[2]}\n")
         output.write("\\.\n\n")
 
-def handle_content_detail(location_details,m_id, content_detail, content_location):
+
+def string_to_dict(text):
+    text_spl = str(text).split('+')
+    for i in range(0,len(text_spl)):
+        text_spl[i] = str(text_spl[i]).strip().replace(' ', '_')
+    text = "+".join(text_spl)
+    res = ''
+    try:
+        patt = re.compile(r'([^+)(\][]+)')
+        res = '[' + patt.sub(r'"\1"', text) + ']'
+        res = res.replace(r"+", ",").replace('(','[').replace(')',']').replace("_",' ')
+        return json.loads(res)
+    except TypeError:
+        return json.loads('["' + str(res) + '"]')
+    except json.decoder.JSONDecodeError:
+        return None
+
+def handle_content_detail(location_details,m_id, content_details, content_locations):
+    if not (content_details and content_locations):
+        stderr(f"None: {m_id}\t{content_details}\t{content_locations}")
+        if not content_details:
+            content_details = "unknown"
+        else:
+            content_locations = "unknown"
+#        location_details.append([m_id, res_det, res_loc])
+#        return
+#        patt = re.compile(r'([^ +)(\][]+)')
+#        res = '[' + patt.sub(r'"\1"', content_details) + ']'
+#        res = res.replace(r"+", ",").replace('(','[').replace(')',']')
+#        res_det = json.loads(res)
+    res_det = string_to_dict(content_details)
+#        res = '[' + patt.sub(r'"\1"', content_locations) + ']'
+#        res = res.replace(r"+", ",").replace('(','[').replace(')',']')
+#        res_loc = json.loads(res)
+    res_loc = string_to_dict(content_locations)
+    if not (res_det and res_loc):
+        stderr(f"error: {m_id}\t{res_det}\t{res_loc}")
+        stderr(f"     : \t{content_details}")
+        stderr(f"     : \t{content_locations}")
+    else:
+        add_location_details(location_details,m_id, res_det, res_loc)
+#        location_details.append([m_id, res_det, res_loc])
+
+#    stderr(f'{res_det}')
+#    stderr(f'{res_loc}')
+    
+    return
+
+def add_location_details(location_details,m_id, res_det, res_loc):
+    if m_id=='M0003':
+        stderr(res_det)
+        stderr(res_loc)
+    if isinstance(res_det, str) and isinstance(res_loc, str):
+        location_details.append([m_id, res_det, res_loc])
+        return
+    if isinstance(res_det, list) and isinstance(res_loc, list):
+        if len(res_det)==1 and len(res_loc)>1:
+            flat_det = flatten(res_det)
+            flat_loc = flatten(res_loc)
+            for loc in flat_loc:
+                location_details.append([m_id, flat_det[0], loc])
+        elif len(res_det)>1 and len(res_loc)==1:
+            flat_det = flatten(res_det)
+            flat_loc = flatten(res_loc)
+            for det in flat_det:
+                location_details.append([m_id, det, flat_loc[0]])
+        elif len(res_det) != len(res_loc):
+            location_details.append([m_id, ' + '.join(map(str, res_det)), ' + '.join(map(str, res_loc))])
+        elif len(res_det) == len(res_loc):
+            for i in range(0, len(res_loc)):
+                add_location_details(location_details, m_id, res_det[i], res_loc[i])
+    elif isinstance(res_loc, str):
+        for det in res_det:
+            add_location_details(location_details, m_id, det, res_loc)
+    elif isinstance(res_det, str):
+        for loc in res_loc:
+            add_location_details(location_details, m_id, res_det, loc)
+
+
+def flatten(lijst):
+    res = []
+    for it in lijst:
+        if isinstance(it, list):
+            res += flatten(it)
+        else:
+            res.append(it)
+    return res
+
+def ignore():
     if not isinstance(content_location, str):
         content_location = f'{content_location}'
         if content_location.endswith('.0'):
@@ -174,38 +263,46 @@ def handle_content_detail(location_details,m_id, content_detail, content_locatio
     md = pattern.findall(f'{content_detail}')
     md_2 = pattern.findall(content_location)
     if len(md) != len(md_2):
-        stderr(f"{m_id}\t{content_detail}\t{content_location}")
+        #stderr(f"{m_id}\t{content_detail}\t{content_location}")
         location_details.append([m_id,content_detail,content_location])
         return
+
+    if len(md) == 0:
+        md = pattern_2.findall(f'{content_detail}')
+        md_2 = pattern_2.findall(content_location)
+
+    if len(md) == 0:
+        stderr(f'{m_id}\t{content_detail}\t{content_location}')
+        location_details.append([m_id,content_detail,content_location])
     for li in md:
         for ti in li:
             pass
     for li in md_2:
         for ti in li:
-            ti_2 = ti.strip(' +)(')
+            ti_2 = clean(ti)
             if ti_2:
                 pass
     for i in range(0,len(md)):
         if len(md[i]) != len(md_2[i]):
-            pass
+            # it seems, this never happens
+            stderr(f'{m_id}\t{md[i]}\t{md_2[i]}')
+            location_details.append([m_id,md[i],md_2[j]])
         else:
             for j in range(0,len(md[i])):
                 content = md[i][j].split(r'+')
                 location = md_2[i][j].split(r'+')
                 if len(content) == len(location):
                     for k in range(0,len(content)):
-                        if content[k].strip(' +)(') or location[k].strip(' +)('):
-                            stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[k].strip(' +)(')}")
-                            location_details.append([m_id,content[k].strip(' +)('),location[k].strip(' +)(')])
+                        if clean(content[k]) or clean(location[k]):
+                            #stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[k].strip(' +)(')}")
+                            location_details.append([m_id, clean(content[k]), clean(location[k])])
                 else:
                     if len(content) > 1:
                         for k in range(0,len(content)):
-                            stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[0].strip(' +)(')}")
-                            location_details.append([m_id,content[k].strip(' +)('),location[0].strip(' +)(')])
+                            #stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[0].strip(' +)(')}")
+                            location_details.append([m_id, clean(content[k]), clean(location[0])])
                     pass
-    if len(md) == 0:
-        stderr(f'{m_id}\t{content_detail}\t{content_location}')
-        location_details.append([m_id,content_detail,content_location])
+
 
 def create_schema(headers):
     create_table("manuscripts", headers)
@@ -277,8 +374,8 @@ def getBGColor(book, sheet, row, col):
     pattern_colour = book.colour_map[bgx]
     return pattern_colour
 
-def clean_string(value):
-    return value
+def clean(value):
+    return value.strip(' +)(][')
 
 
 def stderr(text=""):
