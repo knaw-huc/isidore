@@ -191,37 +191,23 @@ def handle_content_detail(location_details,m_id, content_details, content_locati
             content_details = "unknown"
         else:
             content_locations = "unknown"
-#        location_details.append([m_id, res_det, res_loc])
-#        return
-#        patt = re.compile(r'([^ +)(\][]+)')
-#        res = '[' + patt.sub(r'"\1"', content_details) + ']'
-#        res = res.replace(r"+", ",").replace('(','[').replace(')',']')
-#        res_det = json.loads(res)
     res_det = string_to_dict(content_details)
-#        res = '[' + patt.sub(r'"\1"', content_locations) + ']'
-#        res = res.replace(r"+", ",").replace('(','[').replace(')',']')
-#        res_loc = json.loads(res)
     res_loc = string_to_dict(content_locations)
     if not (res_det and res_loc):
         stderr(f"error: {m_id}\t{res_det}\t{res_loc}")
         stderr(f"     : \t{content_details}")
         stderr(f"     : \t{content_locations}")
+        add_location_details(location_details,m_id, content_details[1:-1], content_locations[1:-1])
     else:
-        add_location_details(location_details,m_id, res_det, res_loc)
-#        location_details.append([m_id, res_det, res_loc])
-
-#    stderr(f'{res_det}')
-#    stderr(f'{res_loc}')
-    
+        res = add_location_details(location_details,m_id, res_det, res_loc)
+        if not res:
+            add_location_details(location_details,m_id, content_details, content_locations)
     return
 
 def add_location_details(location_details,m_id, res_det, res_loc):
-    if m_id=='M0003':
-        stderr(res_det)
-        stderr(res_loc)
     if isinstance(res_det, str) and isinstance(res_loc, str):
         location_details.append([m_id, res_det, res_loc])
-        return
+        return True
     if isinstance(res_det, list) and isinstance(res_loc, list):
         if len(res_det)==1 and len(res_loc)>1:
             flat_det = flatten(res_det)
@@ -234,7 +220,8 @@ def add_location_details(location_details,m_id, res_det, res_loc):
             for det in flat_det:
                 location_details.append([m_id, det, flat_loc[0]])
         elif len(res_det) != len(res_loc):
-            location_details.append([m_id, ' + '.join(map(str, res_det)), ' + '.join(map(str, res_loc))])
+            return False
+            #location_details.append([m_id, ' + '.join(map(str, res_det)), ' + '.join(map(str, res_loc))])
         elif len(res_det) == len(res_loc):
             for i in range(0, len(res_loc)):
                 add_location_details(location_details, m_id, res_det[i], res_loc[i])
@@ -244,6 +231,7 @@ def add_location_details(location_details,m_id, res_det, res_loc):
     elif isinstance(res_det, str):
         for loc in res_loc:
             add_location_details(location_details, m_id, res_det, loc)
+    return True
 
 
 def flatten(lijst):
