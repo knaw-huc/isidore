@@ -16,6 +16,7 @@ delimiter = ','
 quotechar = ''
 pattern = re.compile(r'([^(]*)\(([^)]*)\)([^(]*)')
 pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
+patt = re.compile(r'([^+)(\][]+)')
 
 
 def xls_file(inputfiles, headerrow=0):
@@ -175,7 +176,6 @@ def string_to_dict(text):
     text = "+".join(text_spl)
     res = ''
     try:
-        patt = re.compile(r'([^+)(\][]+)')
         res = '[' + patt.sub(r'"\1"', text) + ']'
         res = res.replace(r"+", ",").replace('(','[').replace(')',']').replace("_",' ')
         return json.loads(res)
@@ -194,7 +194,7 @@ def handle_content_detail(location_details,m_id, content_details, content_locati
     res_det = string_to_dict(content_details)
     res_loc = string_to_dict(content_locations)
     if not (res_det and res_loc):
-        stderr(f"error: {m_id}\t{res_det}\t{res_loc}")
+        stderr(f"error: {m_id}")
         stderr(f"     : \t{content_details}")
         stderr(f"     : \t{content_locations}")
         add_location_details(location_details,m_id, content_details[1:-1], content_locations[1:-1])
@@ -221,7 +221,6 @@ def add_location_details(location_details,m_id, res_det, res_loc):
                 location_details.append([m_id, det, flat_loc[0]])
         elif len(res_det) != len(res_loc):
             return False
-            #location_details.append([m_id, ' + '.join(map(str, res_det)), ' + '.join(map(str, res_loc))])
         elif len(res_det) == len(res_loc):
             for i in range(0, len(res_loc)):
                 add_location_details(location_details, m_id, res_det[i], res_loc[i])
@@ -242,54 +241,6 @@ def flatten(lijst):
         else:
             res.append(it)
     return res
-
-def ignore():
-    if not isinstance(content_location, str):
-        content_location = f'{content_location}'
-        if content_location.endswith('.0'):
-            content_location = content_location[0:-2]
-    md = pattern.findall(f'{content_detail}')
-    md_2 = pattern.findall(content_location)
-    if len(md) != len(md_2):
-        #stderr(f"{m_id}\t{content_detail}\t{content_location}")
-        location_details.append([m_id,content_detail,content_location])
-        return
-
-    if len(md) == 0:
-        md = pattern_2.findall(f'{content_detail}')
-        md_2 = pattern_2.findall(content_location)
-
-    if len(md) == 0:
-        stderr(f'{m_id}\t{content_detail}\t{content_location}')
-        location_details.append([m_id,content_detail,content_location])
-    for li in md:
-        for ti in li:
-            pass
-    for li in md_2:
-        for ti in li:
-            ti_2 = clean(ti)
-            if ti_2:
-                pass
-    for i in range(0,len(md)):
-        if len(md[i]) != len(md_2[i]):
-            # it seems, this never happens
-            stderr(f'{m_id}\t{md[i]}\t{md_2[i]}')
-            location_details.append([m_id,md[i],md_2[j]])
-        else:
-            for j in range(0,len(md[i])):
-                content = md[i][j].split(r'+')
-                location = md_2[i][j].split(r'+')
-                if len(content) == len(location):
-                    for k in range(0,len(content)):
-                        if clean(content[k]) or clean(location[k]):
-                            #stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[k].strip(' +)(')}")
-                            location_details.append([m_id, clean(content[k]), clean(location[k])])
-                else:
-                    if len(content) > 1:
-                        for k in range(0,len(content)):
-                            #stderr(f"{m_id}\t{content[k].strip(' +)(')}\t{location[0].strip(' +)(')}")
-                            location_details.append([m_id, clean(content[k]), clean(location[0])])
-                    pass
 
 
 def create_schema(headers):
@@ -370,7 +321,7 @@ def stderr(text=""):
     sys.stderr.write("{}\n".format(text))
 
 def arguments():
-    ap = argparse.ArgumentParser(description='Read file (csv, xls(x), sql_dump to make xml-rdf')
+    ap = argparse.ArgumentParser(description='Read isidore xlsx to make postgres import file')
     ap.add_argument('-i', '--inputfile',
                     help="inputfile",
                     default = "20200227_manuscripts_mastersheet_CURRENT.xlsx")
@@ -410,6 +361,5 @@ if __name__ == "__main__":
  
     xls_file(inputfiles)
     
-
     end_prog(0)
 
