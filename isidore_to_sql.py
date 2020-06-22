@@ -18,6 +18,7 @@ pattern = re.compile(r'([^(]*)\(([^)]*)\)([^(]*)')
 pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
 patt = re.compile(r'([^+)(\][]+)')
 
+linked_tables = ["place_scaled","date_scaled","books_included","content_type", "place_absolute","physical_state_scaled","script","designed_as"]
 
 def xls_file(inputfiles, headerrow=0):
     for filename in inputfiles:
@@ -34,12 +35,52 @@ def xls_file(inputfiles, headerrow=0):
         sheet = wb.sheet_by_index(0) 
         result = []
         headers = []
-        scaled_places = []
+        scaled_places = {
+			"Continent": 1,
+			"England": 2,
+			"France": 3,
+			"northern France": 4,
+			"southern France": 5,
+			"German area": 6,
+			"Ireland": 7,
+			"Italy": 8,
+			"central Italy": 9,
+			"northern Italy": 10,
+			"southern Italy": 11,
+			"Spain": 12,
+			"unknown": 13 }
+        scaled_place_last_key = 13
         has_scaled_place = {}
-        scaled_dates = []
+        absolute_places = {}
+        absolute_place_last_key = 0
+        has_absolute_place = {}
+        scaled_dates = {
+		'7th c.': 70,
+		'7th c., 2/2': 72,
+		'8th c.': 80,
+		'8th c., 1/2': 81,
+		'8th c., 2/2': 82,
+		'9th c.': 90,
+		'9th c., 1/2': 91,
+		'9th c., 2/2': 92,
+		'10th c.': 100,
+		'10th c., 1/2': 101,
+		'10th c., 2/2': 102,
+		'11th c.': 110,
+		'11th c., 1/2': 111 }
         has_scaled_date = {}
-        content_types = []
+        scaled_date_last_key = 119
+        content_types = {}
         has_content_type = {}
+        content_type_last_key = 0
+        physical_states = []
+        has_physical_state = {}
+        scripts = {}
+        has_script = {}
+        scripts_last_key = 0
+        designed_as = {}
+        has_designed_as = {}
+        designed_as_last_key = 0
         includes_books = {}
         location_details = []
 
@@ -59,13 +100,14 @@ def xls_file(inputfiles, headerrow=0):
                     color = getBGColor(wb, sheet, rownum, colnum)
                     if color:
                         # will see if we will do something with the color information
+                        # works only for .xls not for .xlsx
                         # stderr(f'{cell} ({rownum},{colnum}): {color}')
                         pass
-                if cell != '':
+                if cell.strip() != '':
                     if cell_type==xlrd.XL_CELL_TEXT:
                         cell = re.sub(r'&','&amp;',cell)
                         cell = re.sub(r"\\","\\\\\\\\",cell)
-                        manuscript.append(cell)
+                        manuscript.append(cell.replace('\n',' '))
                     elif cell_type==xlrd.XL_CELL_NUMBER:
                         if cell.endswith('.0'):
                             cell = cell[0:-2]
@@ -76,14 +118,24 @@ def xls_file(inputfiles, headerrow=0):
                     else:
                         stderr('Not found')
                     if headers[colnum]=="place_scaled":
+                        if cell=='Central Italy':
+                            cell='central Italy'
                         if not cell in scaled_places:
-                            scaled_places.append(cell)
-                        has_scaled_place[m_id] = cell
+                            scaled_place_last_key += 1
+                            scaled_places[cell] = scaled_place_last_key
+                        has_scaled_place[m_id] = scaled_places.get(cell)
+                        manuscript.pop()
+                    elif headers[colnum]=="place_absolute":
+                        if not cell in absolute_places:
+                            absolute_place_last_key += 1
+                            absolute_places[cell] = absolute_place_last_key 
+                        has_absolute_place[m_id] = absolute_places.get(cell)
                         manuscript.pop()
                     elif headers[colnum]=="date_scaled":
                         if not cell in scaled_dates:
-                            scaled_dates.append(cell)
-                        has_scaled_date[m_id] = cell
+                            scaled_date_last_key += 1
+                            scaled_dates[cell] = scaled_date_last_key
+                        has_scaled_date[m_id] = scaled_dates.get(cell)
                         manuscript.pop()
                     elif headers[colnum]=="books_included":
                         res = try_roman(cell)
@@ -91,52 +143,90 @@ def xls_file(inputfiles, headerrow=0):
                         manuscript.pop()
                     elif headers[colnum]=="content_type":
                         if not cell in content_types:
-                            content_types.append(cell)
-                        has_content_type[m_id] = cell
+                            content_type_last_key += 1
+                            content_types[cell] = content_type_last_key 
+                        has_content_type[m_id] = content_types.get(cell)
                         manuscript.pop()
-                elif not headers[colnum] in ["place_scaled","date_scaled","books_included","content_type"]:
-                    manuscript.append('')
+                    elif headers[colnum]=="physical_state_scaled":
+                        if not cell in physical_states:
+                            physical_states.append(cell)
+                        has_physical_state[m_id] = cell
+                        manuscript.pop()
+                    elif headers[colnum]=="script":
+                        if not cell in scripts:
+                            scripts_last_key += 1
+                            scripts[cell] = scripts_last_key
+                        has_script[m_id] = scripts.get(cell)
+                        manuscript.pop()
+                    elif headers[colnum]=="designed_as":
+                        # cell nog splitsen op komma
+                        split_cell = cell.split('+')
+                        for cel in split_cell:
+                            if not cel.strip() in designed_as:
+                                designed_as_last_key += 1
+                                designed_as[cel.strip()] = designed_as_last_key
+                            if m_id in has_designed_as:
+                                has_designed_as[m_id].append(designed_as.get(cel.strip()))
+                            else:
+                                has_designed_as[m_id] = [designed_as.get(cel.strip())]
+                        manuscript.pop()
+                elif not headers[colnum] in linked_tables:
+                    if colnum>12 and colnum<24:
+                        manuscript.append('\\N')
+                    else:
+                        manuscript.append('')
             handle_content_detail(location_details, m_id, sheet.cell_value(rownum,27), sheet.cell_value(rownum,28))
             result.append(manuscript)
             teller += 1
 
         headers_2 = []
         for header in headers:
-            if not header in ["place_scaled","date_scaled","books_included","content_type"]:
+            if not header in linked_tables:
+            # ["place_scaled","date_scaled","books_included","content_type"]:
                 headers_2.append(header + " text")
         headers_2[0] += " primary key"
         create_schema(headers_2)
 
         headers_2 = []
         for header in headers:
-            if not header in ["place_scaled","date_scaled","books_included","content_type"]:
+            if not header in linked_tables:
+            # ["place_scaled","date_scaled","books_included","content_type"]:
                 headers_2.append(header)
         output.write("COPY manuscripts (")
         output.write(", ".join(headers_2))
         output.write(") FROM stdin;\n")
         for row in result:
-            output.write("\t".join(row))
+#            row_str = "\t".join(row).replace('"','')
+            output.write("\t".join(row).replace("'","''"))
             output.write("\n")
         output.write("\\.\n\n")
 
-        output.write("COPY scaled_places (place) FROM stdin;\n")
-        scaled_places.sort()
-        for place in scaled_places:
-            output.write(f"{place}\n")
+        output.write("COPY scaled_places (place_id, place) FROM stdin;\n")
+        for (place, place_id) in scaled_places.items():
+            output.write(f"{place_id}\t{place}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_scaled_places (m_id, place) FROM stdin;\n")
+        output.write("COPY manuscripts_scaled_places (m_id, place_id) FROM stdin;\n")
         for key in has_scaled_place.keys():
             output.write(f"{key}\t{has_scaled_place[key]}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY scaled_dates (date) FROM stdin;\n")
-        scaled_dates.sort()
-        for date in scaled_dates:
-            output.write(f"{date}\n")
+        output.write("COPY absolute_places (place_id, place) FROM stdin;\n")
+        for (place, place_id) in absolute_places.items():
+            output.write(f"{place_id}\t{place}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_scaled_dates (m_id, date) FROM stdin;\n")
+        output.write("COPY manuscripts_absolute_places (m_id, place_id) FROM stdin;\n")
+        for key in has_absolute_place.keys():
+            output.write(f"{key}\t{has_absolute_place[key]}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY scaled_dates (date_id, date) FROM stdin;\n")
+        for (date,date_id) in scaled_dates.items():
+            output.write(f"{date_id}\t{date}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY manuscripts_scaled_dates (m_id, date_id) FROM stdin;\n")
         for key in has_scaled_date.keys():
             output.write(f"{key}\t{has_scaled_date[key]}\n")
         output.write("\\.\n\n")
@@ -152,15 +242,35 @@ def xls_file(inputfiles, headerrow=0):
                 output.write(f"{key}\t{book}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY content_types (content_type) FROM stdin;\n")
-        content_types.sort()
-        for content_type in content_types:
-            output.write(f"{content_type}\n")
+        output.write("COPY content_types (type_id, content_type) FROM stdin;\n")
+        for (content_type, type_id) in content_types.items():
+            output.write(f"{type_id}\t{content_type}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_content_types (m_id, content_type) FROM stdin;\n")
+        output.write("COPY manuscripts_content_types (m_id, type_id) FROM stdin;\n")
         for key in has_content_type.keys():
             output.write(f"{key}\t{has_content_type[key]}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY scripts (script_id, script) FROM stdin;\n")
+        for (script,script_id) in scripts.items():
+            output.write(f"{script_id}\t{script}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY manuscripts_scripts (m_id, script_id) FROM stdin;\n")
+        for key in has_script.keys():
+            output.write(f"{key}\t{has_script[key]}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY designed_as (design_id, design) FROM stdin;\n")
+        for (design,design_id) in designed_as.items():
+            output.write(f"{design_id}\t{design}\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY manuscripts_designed_as (m_id, design_id) FROM stdin;\n")
+        for key in has_designed_as.keys():
+            for design in has_designed_as[key]:
+                output.write(f"{key}\t{design}\n")
         output.write("\\.\n\n")
 
         output.write("COPY manuscripts_details_locations (m_id, details, locations) FROM stdin;\n")
@@ -247,17 +357,27 @@ def create_schema(headers):
     create_table("manuscripts", headers)
     #
     create_table("scaled_places",
-            ["place text primary key"])
+            ["place_id integer primary key", "place text", "longitude real",
+                "lattitude real"])
     #
     create_table("manuscripts_scaled_places",
-            ["m_id text references manuscripts(ID)",
-                "place text references scaled_places(place)"])
+            ["m_id text unique references manuscripts(ID)",
+                "place_id integer references scaled_places(place_id)"])
+    #
+    create_table("absolute_places",
+            ["place text primary key"])
+    #
+    create_table("manuscripts_absolute_places",
+            ["m_id text unique references manuscripts(ID)",
+                "place text references absolute_places(place),",
+                "longitude real,",
+                "lattitude real"])
     #
     create_table("scaled_dates",
             ["date text primary key"])
     #
     create_table("manuscripts_scaled_dates",
-            ["m_id text references manuscripts(ID)",
+            ["m_id text unique references manuscripts(ID)",
                 "date text references scaled_dates(date)"])
     #
     create_table("books",
@@ -268,11 +388,12 @@ def create_schema(headers):
                 "b_id int references books(id)"])
     #
     create_table("content_types",
-            ["content_type text primary key"]) 
+            ["type_id integer primary key", 
+                "content_type text"]) 
     #
     create_table("manuscripts_content_types",
-            ["m_id text references manuscripts(ID)",
-                "content_type text references content_types(content_type)"])
+            ["m_id text unique references manuscripts(ID)",
+                "content_type integer references content_types(type_id)"])
     #
     create_table("manuscripts_details_locations",
             ["m_id text references manuscripts(ID)",
@@ -324,13 +445,13 @@ def arguments():
     ap = argparse.ArgumentParser(description='Read isidore xlsx to make postgres import file')
     ap.add_argument('-i', '--inputfile',
                     help="inputfile",
-                    default = "20200227_manuscripts_mastersheet_CURRENT.xlsx")
+                    default = "20200615_manuscripts_mastersheet.xlsx")
     ap.add_argument('-o', '--outputfile',
                     help="outputfile",
-                    default = "isidore_data.sql")
+                    default = "isidore_data_20200615.sql")
     ap.add_argument('-s', '--schema',
                     help="schema file",
-                    default = "isidore_schema.sql")
+                    default = "isidore_schema_2020615.sql")
     ap.add_argument('-q', '--quotechar',
                     help="quotechar",
                     default = "'" )
