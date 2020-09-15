@@ -17,6 +17,7 @@ quotechar = ''
 pattern = re.compile(r'([^(]*)\(([^)]*)\)([^(]*)')
 pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
 patt = re.compile(r'([^+)(\][]+)')
+long_lat_patt = re.compile(r"([NSEW]) (\d+)° (\d+)' (\d+)'?'?")
 
 linked_tables = ["place_scaled","date_scaled","books_included","content_type", "place_absolute","physical_state_scaled","script","designed_as"]
 
@@ -32,26 +33,17 @@ def xls_file(inputfiles, headerrow=0):
             wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8", formatting_info=True)
         else:
             wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8")
+#
+        scaled_places = get_scaled_places(wb)
+        absolute_places = get_absolute_places(wb)
+        viaf = get_viaf(wb)
+        librarys, manuscripts_librarys = get_current_locations(wb)
+#
         sheet = wb.sheet_by_index(0) 
         result = []
         headers = []
-        scaled_places = {
-			"Continent": 1,
-			"England": 2,
-			"France": 3,
-			"northern France": 4,
-			"southern France": 5,
-			"German area": 6,
-			"Ireland": 7,
-			"Italy": 8,
-			"central Italy": 9,
-			"northern Italy": 10,
-			"southern Italy": 11,
-			"Spain": 12,
-			"unknown": 13 }
         scaled_place_last_key = 13
         has_scaled_place = {}
-        absolute_places = {}
         absolute_place_last_key = 0
         has_absolute_place = {}
         scaled_dates = {
@@ -122,14 +114,18 @@ def xls_file(inputfiles, headerrow=0):
                             cell='central Italy'
                         if not cell in scaled_places:
                             scaled_place_last_key += 1
-                            scaled_places[cell] = scaled_place_last_key
-                        has_scaled_place[m_id] = scaled_places.get(cell)
+                            scaled_places[cell] = [scaled_place_last_key]
+                        has_scaled_place[m_id] = scaled_places.get(cell)[0]
                         manuscript.pop()
                     elif headers[colnum]=="place_absolute":
+                        if cell=='Chabannes/Limoges':
+                            cell = 'Chabannes or Limoges'
+                        if cell=='Rhaetia':
+                            cell = 'Raetia'
                         if not cell in absolute_places:
                             absolute_place_last_key += 1
                             absolute_places[cell] = absolute_place_last_key 
-                        has_absolute_place[m_id] = absolute_places.get(cell)
+                        has_absolute_place[m_id] = absolute_places.get(cell)[0]
                         manuscript.pop()
                     elif headers[colnum]=="date_scaled":
                         if not cell in scaled_dates:
@@ -159,7 +155,6 @@ def xls_file(inputfiles, headerrow=0):
                         has_script[m_id] = scripts.get(cell)
                         manuscript.pop()
                     elif headers[colnum]=="designed_as":
-                        # cell nog splitsen op komma
                         split_cell = cell.split('+')
                         for cel in split_cell:
                             if not cel.strip() in designed_as:
@@ -175,14 +170,13 @@ def xls_file(inputfiles, headerrow=0):
                         manuscript.append('\\N')
                     else:
                         manuscript.append('')
-            handle_content_detail(location_details, m_id, sheet.cell_value(rownum,27), sheet.cell_value(rownum,28))
+            handle_content_detail(location_details, m_id, sheet.cell_value(rownum,33), sheet.cell_value(rownum,34))
             result.append(manuscript)
             teller += 1
 
         headers_2 = []
         for header in headers:
             if not header in linked_tables:
-            # ["place_scaled","date_scaled","books_included","content_type"]:
                 headers_2.append(header + " text")
         headers_2[0] += " primary key"
         create_schema(headers_2)
@@ -190,20 +184,18 @@ def xls_file(inputfiles, headerrow=0):
         headers_2 = []
         for header in headers:
             if not header in linked_tables:
-            # ["place_scaled","date_scaled","books_included","content_type"]:
                 headers_2.append(header)
         output.write("COPY manuscripts (")
         output.write(", ".join(headers_2))
         output.write(") FROM stdin;\n")
         for row in result:
-#            row_str = "\t".join(row).replace('"','')
-            output.write("\t".join(row).replace("'","''"))
+            output.write("\t".join(row)) # .replace("'","''"))
             output.write("\n")
         output.write("\\.\n\n")
 
-        output.write("COPY scaled_places (place_id, place) FROM stdin;\n")
-        for (place, place_id) in scaled_places.items():
-            output.write(f"{place_id}\t{place}\n")
+        output.write("COPY scaled_places (place_id, place, gps_latitude, gps_longitude, latitude, longitude) FROM stdin;\n")
+        for (place, place_data) in scaled_places.items():
+            output.write(f"{place_data[0]}\t{place}\t{place_data[1]}\t{place_data[2]}\t{place_data[5]}\t{place_data[6]}\n")
         output.write("\\.\n\n")
 
         output.write("COPY manuscripts_scaled_places (m_id, place_id) FROM stdin;\n")
@@ -211,9 +203,10 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{key}\t{has_scaled_place[key]}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY absolute_places (place_id, place) FROM stdin;\n")
-        for (place, place_id) in absolute_places.items():
-            output.write(f"{place_id}\t{place}\n")
+        output.write("COPY absolute_places (place_id, place_absolute, GPS_latitude, GPS_longitude, Country, Country_GeoNames, Latitude, Longitude, GeoNames_id, GeoNames_uri) FROM stdin;\n")
+        for (place, place_data) in absolute_places.items():
+            all_place_data = '\t'.join(place_data[2:])
+            output.write(f"{place_data[0]}\t{all_place_data}\n")
         output.write("\\.\n\n")
 
         output.write("COPY manuscripts_absolute_places (m_id, place_id) FROM stdin;\n")
@@ -262,7 +255,7 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{key}\t{has_script[key]}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY designed_as (design_id, design) FROM stdin;\n")
+        output.write("COPY designed_as (design_id, designed_as) FROM stdin;\n")
         for (design,design_id) in designed_as.items():
             output.write(f"{design_id}\t{design}\n")
         output.write("\\.\n\n")
@@ -277,6 +270,124 @@ def xls_file(inputfiles, headerrow=0):
         for row in location_details:
             output.write(f"{row[0]}\t{row[1]}\t{row[2]}\n")
         output.write("\\.\n\n")
+
+        output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2) FROM stdin;\n")
+        for row in viaf:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY library (lib_id, lib_name, GPS_latitude, GPS_longitude, Place_name, Country, Country_GeoNames, Latitude, Longitude, GeoNames_id, GeoNames_uri) FROM stdin;\n")
+        for key in librarys:
+            output.write("\t".join(librarys[key]) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY manuscripts_library (m_id, shelfmark, lib_id) FROM stdin;\n")
+        for row in manuscripts_librarys:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+
+def get_scaled_places(wb):
+    teller = 0
+    scaled_places = {}
+    sheet = wb.sheet_by_index(5) 
+    for rownum in range(1, sheet.nrows):
+        placename = ''
+        for colnum in range(1, sheet.ncols):
+            cell_type = sheet.cell_type(rownum,colnum)
+            cell = "{}".format(sheet.cell_value(rownum,colnum))
+            if cell=='Central Italy':
+#           Central = central
+                cell = 'central Italy'
+            if colnum==1:
+                if not cell in scaled_places:
+                    placename = cell
+                    scaled_places[placename] = [0]
+            elif placename != '':
+                scaled_places[placename].append(cell.replace('"',"''"))
+        if placename and scaled_places[placename][1]:
+            scaled_places[placename].append(hms_to_dec(scaled_places[placename][1]))
+            scaled_places[placename].append(hms_to_dec(scaled_places[placename][2]))
+        elif placename:
+            scaled_places[placename].append('0.0')
+            scaled_places[placename].append('0.0')
+#           sorteer op alfabet
+    for k in sorted(scaled_places.keys()):
+        teller += 1
+        scaled_places[k][0] = teller
+    return scaled_places
+
+
+def get_absolute_places(wb):
+    teller = 0
+    absolute_places = {}
+    sheet = wb.sheet_by_index(4) 
+    for rownum in range(1, sheet.nrows):
+        placename = ''
+        cell = "{}".format(sheet.cell_value(rownum,2))
+        if not cell in absolute_places:
+            placename = cell
+            absolute_places[placename] = [0]
+        for colnum in range(1, sheet.ncols):
+            cell_type = sheet.cell_type(rownum,colnum)
+            cell = "{}".format(sheet.cell_value(rownum,colnum))
+            if placename != '':
+                if colnum==7 or colnum==8:
+                    if cell=='':
+                        absolute_places[placename].append('0.0')
+                    else:
+                        absolute_places[placename].append(cell.replace('"',"''"))
+                else:
+                    absolute_places[placename].append(cell.replace('"',"''"))
+    for k in sorted(absolute_places.keys()):
+        teller += 1
+        absolute_places[k][0] = teller
+    return absolute_places
+
+
+def get_viaf(wb):
+    viaf = []
+    sheet = wb.sheet_by_index(2) 
+    for rownum in range(1, sheet.nrows):
+        placename = ''
+        row = []
+        for colnum in range(sheet.ncols):
+            cell = "{}".format(sheet.cell_value(rownum,colnum))
+            if colnum==3:
+                if cell.endswith('.0'):
+                    cell = cell[0:-2]
+                elif cell=='':
+                    cell = '0'
+#                cell = f'"{cell}"'
+            row.append(cell)
+        viaf.append(row)
+    return viaf
+
+
+def get_current_locations(wb):
+    librarys = {}
+    teller = 0
+    manuscripts_librarys = []
+    sheet = wb.sheet_by_index(3)
+    for rownum in range(1, sheet.nrows):
+        cell = "{}".format(sheet.cell_value(rownum,1))
+        library = ','.join(cell.split(',')[0:2])
+        if library=='Ithaca, Cornell University' or library=='Salzburg, St. Peter':
+            library = ','.join(cell.split(',')[0:3])
+        if library not in librarys:
+            teller += 1
+            librarys[library] = [str(teller), library]
+            for colnum in range(2, sheet.ncols):
+                cell = "{}".format(sheet.cell_value(rownum,colnum))
+                if colnum==9:
+                    if cell.endswith('.0'):
+                        cell = cell[0:-2]
+                    if cell=='':
+                        cell = '0'
+                librarys[library].append(cell)
+        manuscripts_librarys.append( [ "{}".format(sheet.cell_value(rownum,0)),
+            "{}".format(sheet.cell_value(rownum,1)), librarys[library][0] ] )
+    return librarys, manuscripts_librarys
 
 
 def string_to_dict(text):
@@ -357,28 +468,29 @@ def create_schema(headers):
     create_table("manuscripts", headers)
     #
     create_table("scaled_places",
-            ["place_id integer primary key", "place text", "longitude real",
-                "lattitude real"])
+            ["place_id integer primary key", "place text",
+                "gps_latitude text", "gps_longitude text",
+                "latitude real", "longitude real"])
     #
     create_table("manuscripts_scaled_places",
             ["m_id text unique references manuscripts(ID)",
                 "place_id integer references scaled_places(place_id)"])
     #
     create_table("absolute_places",
-            ["place text primary key"])
+            ["place_id integer primary key", "place_absolute text",
+                "GPS_latitude text", "GPS_longitude text", "Country text", "Country_GeoNames text",
+                "Latitude real", "Longitude real", "GeoNames_id text", "GeoNames_uri text"])
     #
     create_table("manuscripts_absolute_places",
             ["m_id text unique references manuscripts(ID)",
-                "place text references absolute_places(place),",
-                "longitude real,",
-                "lattitude real"])
+                "place_id integer references absolute_places(place_id)"])
     #
     create_table("scaled_dates",
-            ["date text primary key"])
+            ["date_id integer primary key","date text"])
     #
     create_table("manuscripts_scaled_dates",
             ["m_id text unique references manuscripts(ID)",
-                "date text references scaled_dates(date)"])
+                "date_id integer references scaled_dates(date_id)"])
     #
     create_table("books",
             ["id int primary key", "roman text"])
@@ -393,12 +505,40 @@ def create_schema(headers):
     #
     create_table("manuscripts_content_types",
             ["m_id text unique references manuscripts(ID)",
-                "content_type integer references content_types(type_id)"])
+                "type_id integer references content_types(type_id)"])
+    #
+    create_table("scripts",
+            ["script_id integer primary key", "script text"])
+    #
+    create_table("manuscripts_scripts",
+            ["m_id text references manuscripts(ID)", "script_id integer references scripts(script_id)"])
+    #
+    create_table("designed_as",
+            ["design_id integer primary key", "designed_as text"])
+    #
+    create_table("manuscripts_designed_as",
+            ["m_id text references manuscripts(ID)", "design_id integer references designed_as(design_id)"])
     #
     create_table("manuscripts_details_locations",
             ["m_id text references manuscripts(ID)",
                 "details text",
                 "locations text"])
+    #
+    schema_out.write('/* VIAF_ID is text: some of these ids have more digits than either integer or bigint can handle! */\n')
+    create_table("manuscripts_viaf",
+            ["ID text references manuscripts(ID)", "shelfmark text",
+                "additional_content_scaled text", "VIAF_ID text",
+                "VIAF_URL text", "Full_name_1 text", "Full_name_2 text"])
+    #
+    create_table("library",
+            ["lib_id integer primary key", "lib_name text",
+                "GPS_latitude text", "GPS_longitude text",
+                "Place_name text", "Country text", "Country_GeoNames text",
+                "Latitude real", "Longitude real", "GeoNames_id integer", "GeoNames_uri text"])
+    #
+    create_table("manuscripts_library",
+            ["m_id text references manuscripts(ID)", "shelfmark text", "lib_id integer references library(lib_id)"])
+
 
 def create_table(table, columns):
      schema_out.write(f"DROP TABLE {table} CASCADE;\n")
@@ -426,6 +566,16 @@ def try_roman(text):
                 return list(range(first,last+1))
             else:
                 stderr(f'{text} not valid?')
+
+# convert longitude or latitude in degrees, minutes, seconds to degrees and a decimal fraction
+def hms_to_dec(text):
+    res = re.search(long_lat_patt, text)
+    res_float = float(res.group(2)) + float(res.group(3)) / 60 + float(res.group(4)) / 3600
+    # South and West are negative values:
+    if res.group(1)=='S' or res.group(1)=='W':
+        res_float = -1 * res_float 
+    # a decimal fraction of maximum 5 digits seems to be the international standard
+    return f'{round(res_float,5):.5f}'
 
 def getBGColor(book, sheet, row, col):
     xfx = sheet.cell_xf_index(row, col)
