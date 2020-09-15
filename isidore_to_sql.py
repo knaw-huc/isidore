@@ -47,19 +47,19 @@ def xls_file(inputfiles, headerrow=0):
         absolute_place_last_key = 0
         has_absolute_place = {}
         scaled_dates = {
-		'7th c.': 70,
-		'7th c., 2/2': 72,
-		'8th c.': 80,
-		'8th c., 1/2': 81,
-		'8th c., 2/2': 82,
-		'9th c.': 90,
-		'9th c., 1/2': 91,
-		'9th c., 2/2': 92,
-		'10th c.': 100,
-		'10th c., 1/2': 101,
-		'10th c., 2/2': 102,
-		'11th c.': 110,
-		'11th c., 1/2': 111 }
+		'7th c.': [70,600,699],
+		'7th c., 2/2': [72,650,699],
+		'8th c.': [80,700,799],
+		'8th c., 1/2': [81,700,749],
+		'8th c., 2/2': [82,750,799],
+		'9th c.': [90,800,899],
+		'9th c., 1/2': [91,800,849],
+		'9th c., 2/2': [92,850,899],
+		'10th c.': [100,900,999],
+		'10th c., 1/2': [101,900,949],
+		'10th c., 2/2': [102,950,999],
+		'11th c.': [110,1000,1099],
+		'11th c., 1/2': [111,1000,1049] }
         has_scaled_date = {}
         scaled_date_last_key = 119
         content_types = {}
@@ -131,7 +131,7 @@ def xls_file(inputfiles, headerrow=0):
                         if not cell in scaled_dates:
                             scaled_date_last_key += 1
                             scaled_dates[cell] = scaled_date_last_key
-                        has_scaled_date[m_id] = scaled_dates.get(cell)
+                        has_scaled_date[m_id] = scaled_dates.get(cell)[0]
                         manuscript.pop()
                     elif headers[colnum]=="books_included":
                         res = try_roman(cell)
@@ -214,9 +214,9 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{key}\t{has_absolute_place[key]}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY scaled_dates (date_id, date) FROM stdin;\n")
+        output.write("COPY scaled_dates (date_id, date, lower_date, upper_date) FROM stdin;\n")
         for (date,date_id) in scaled_dates.items():
-            output.write(f"{date_id}\t{date}\n")
+            output.write(f"{date_id[0]}\t{date}\t{date_id[1]}\t{date_id[2]}\n")
         output.write("\\.\n\n")
 
         output.write("COPY manuscripts_scaled_dates (m_id, date_id) FROM stdin;\n")
@@ -486,7 +486,7 @@ def create_schema(headers):
                 "place_id integer references absolute_places(place_id)"])
     #
     create_table("scaled_dates",
-            ["date_id integer primary key","date text"])
+            ["date_id integer primary key","date text", "lower_date integer","upper_date integer"])
     #
     create_table("manuscripts_scaled_dates",
             ["m_id text unique references manuscripts(ID)",
