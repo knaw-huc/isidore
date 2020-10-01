@@ -19,7 +19,7 @@ pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
 patt = re.compile(r'([^+)(\][]+)')
 long_lat_patt = re.compile(r"([NSEW]) (\d+)° (\d+)' (\d+)'?'?")
 
-linked_tables = ["place_scaled","date_scaled","books_included","content_type", "place_absolute","physical_state_scaled","script","designed_as"]
+linked_tables = ["place_scaled","date_scaled","books_included","content_type", "place_absolute","physical_state_scaled","script","designed_as", "certainty"]
 
 def xls_file(inputfiles, headerrow=0):
     for filename in inputfiles:
@@ -124,8 +124,11 @@ def xls_file(inputfiles, headerrow=0):
                             cell = 'Raetia'
                         if not cell in absolute_places:
                             absolute_place_last_key += 1
-                            absolute_places[cell] = absolute_place_last_key 
-                        has_absolute_place[m_id] = absolute_places.get(cell)[0]
+                            absolute_places[cell] = absolute_place_last_key
+                        has_absolute_place[m_id] = [absolute_places.get(cell)[0]]
+                        has_absolute_place[m_id].append(f"{sheet.cell_value(rownum,colnum+1)}")
+                        manuscript.pop()
+                    elif headers[colnum]=="certainty":
                         manuscript.pop()
                     elif headers[colnum]=="date_scaled":
                         if not cell in scaled_dates:
@@ -209,9 +212,9 @@ def xls_file(inputfiles, headerrow=0):
             output.write(f"{place_data[0]}\t{all_place_data}\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_absolute_places (m_id, place_id) FROM stdin;\n")
+        output.write("COPY manuscripts_absolute_places (m_id, place_id, certainty) FROM stdin;\n")
         for key in has_absolute_place.keys():
-            output.write(f"{key}\t{has_absolute_place[key]}\n")
+            output.write(f"{key}\t{has_absolute_place[key][0]}\t{has_absolute_place[key][1]}\n")
         output.write("\\.\n\n")
 
         output.write("COPY scaled_dates (date_id, date, lower_date, upper_date) FROM stdin;\n")
@@ -407,11 +410,11 @@ def string_to_dict(text):
 
 def handle_content_detail(location_details,m_id, content_details, content_locations):
     if not (content_details and content_locations):
-        stderr(f"None: {m_id}\t{content_details}\t{content_locations}")
         if not content_details:
             content_details = "unknown"
-        else:
+        if not content_locations:
             content_locations = "unknown"
+        stderr(f"{m_id}\tcontent_details:\t{content_details}\n\tcontent_locations:\t{content_locations}")
     res_det = string_to_dict(content_details)
     res_loc = string_to_dict(content_locations)
     if not (res_det and res_loc):
@@ -483,7 +486,8 @@ def create_schema(headers):
     #
     create_table("manuscripts_absolute_places",
             ["m_id text unique references manuscripts(ID)",
-                "place_id integer references absolute_places(place_id)"])
+                "place_id integer references absolute_places(place_id)",
+                "certainty text"])
     #
     create_table("scaled_dates",
             ["date_id integer primary key","date text", "lower_date integer","upper_date integer"])
