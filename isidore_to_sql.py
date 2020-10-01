@@ -414,7 +414,7 @@ def handle_content_detail(location_details,m_id, content_details, content_locati
             content_details = "unknown"
         if not content_locations:
             content_locations = "unknown"
-        stderr(f"{m_id}\tcontent_details:\t{content_details}\n\tcontent_locations:\t{content_locations}")
+#        stderr(f"{m_id}\tcontent_details:\t{content_details}\n\tcontent_locations:\t{content_locations}")
     res_det = string_to_dict(content_details)
     res_loc = string_to_dict(content_locations)
     if not (res_det and res_loc):
@@ -425,6 +425,8 @@ def handle_content_detail(location_details,m_id, content_details, content_locati
     else:
         res = add_location_details(location_details,m_id, res_det, res_loc)
         if not res:
+            stderr(f'{m_id}: possible mismatch between details and location:\
+                    \n{content_details}\n{content_locations}')
             add_location_details(location_details,m_id, content_details, content_locations)
     return
 
@@ -436,11 +438,13 @@ def add_location_details(location_details,m_id, res_det, res_loc):
         if len(res_det)==1 and len(res_loc)>1:
             flat_det = flatten(res_det)
             flat_loc = flatten(res_loc)
+#            stderr(f'{m_id}: possible mismatch between details and location:\n{flat_det}\n{flat_loc}')
             for loc in flat_loc:
                 location_details.append([m_id, flat_det[0], loc])
         elif len(res_det)>1 and len(res_loc)==1:
             flat_det = flatten(res_det)
             flat_loc = flatten(res_loc)
+#            stderr(f'{m_id}: possible mismatch between details and location:\n{flat_det}\n{flat_loc}')
             for det in flat_det:
                 location_details.append([m_id, det, flat_loc[0]])
         elif len(res_det) != len(res_loc):
