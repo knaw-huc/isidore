@@ -118,8 +118,18 @@ def xls_file(inputfiles, headerrow=0):
                             manuscript.append(cell)
                         else:
                             manuscript.append(f'{int(cell)}')
+                    elif cell_type==xlrd.XL_CELL_DATE:
+                        if cell.endswith('.0'):
+                            cell = cell[0:-2]
+                        date = xlrd.xldate.xldate_as_datetime(int(cell),0)
+                        try:
+                            stderr(f'{date.strftime("%Y-%m-%d")} (rownum: {rownum}) (colnum: {colnum})')
+                            manuscript.append(f'{date.strftime("%Y-%m-%d")}')
+                        except:
+                            stderr(f'cell: {cell} (colnum: {colnum})')
+                            end_prog(1)
                     else:
-                        stderr('Not found')
+                        stderr(f'Cell type: {cell_type} (Colnum: {colnum}) Not found')
                     if headers[colnum]=="place_scaled":
                         if cell=='Central Italy':
                             cell='central Italy'
@@ -129,6 +139,8 @@ def xls_file(inputfiles, headerrow=0):
                         has_scaled_place[m_id] = scaled_places.get(cell)[0]
                         manuscript.pop()
                     elif headers[colnum]=="place_absolute":
+                        if cell=='Limoges/Angoulême':
+                            cell = 'Limoges or Angoulême'
                         if cell=='Chabannes/Limoges':
                             pass
 #                            cell = 'Chabannes or Limoges'
@@ -136,16 +148,17 @@ def xls_file(inputfiles, headerrow=0):
                             pass
 #                            cell = 'Raetia'
                         if not cell in absolute_places:
+                            stderr(f'add to absolute_places: {cell}')
                             absolute_place_last_key += 1
                             absolute_places[cell] = absolute_place_last_key
-                        #try:
-                        has_absolute_place[m_id] = [absolute_places.get(cell)[0]]
-                        has_absolute_place[m_id].append(f"{sheet.cell_value(rownum,colnum+1)}")
-                        manuscript.pop()
-                        #except:
-                        #    stderr(f'cell: {cell}')
-                        #    stderr(f'abs?: {absolute_places.get(cell)}')
-                        #    end_prog(1)
+                        try:
+                            has_absolute_place[m_id] = [absolute_places.get(cell)[0]]
+                            has_absolute_place[m_id].append(f"{sheet.cell_value(rownum,colnum+1)}")
+                            manuscript.pop()
+                        except:
+                            stderr(f'cell: {cell}')
+                            stderr(f'abs?: {absolute_places[cell]}')
+                            end_prog(1)
                     elif headers[colnum]=="certainty":
                         manuscript.pop()
                     elif headers[colnum]=="date_scaled":
@@ -347,7 +360,7 @@ def xls_file(inputfiles, headerrow=0):
 def get_scaled_places(wb):
     teller = 0
     scaled_places = {}
-    sheet = wb.sheet_by_name('Geonames_place, scaled') 
+    sheet = wb.sheet_by_name('Geo_placescaled') 
     col_pl_name = sheet.row_values(0).index('place, scaled')
     for rownum in range(1, sheet.nrows):
         placename = ''
@@ -378,7 +391,7 @@ def get_scaled_places(wb):
 def get_absolute_places(wb):
     teller = 0
     absolute_places = {}
-    sheet = wb.sheet_by_name('Geonames_place, absolute') 
+    sheet = wb.sheet_by_name('Geo_placeabsolute') 
     col_pl_name = sheet.row_values(0).index('place, absolute')
     col_lat = sheet.row_values(0).index('Latitude')
     col_long = sheet.row_values(0).index('Longitude')
@@ -485,7 +498,7 @@ def get_current_locations(wb):
     librarys = {}
     teller = 0
     manuscripts_librarys = []
-    sheet = wb.sheet_by_name('Geonames_currentlocation')
+    sheet = wb.sheet_by_name('Geo_currentlocation')
     col_shelf = sheet.row_values(0).index('Shelfmark')
     col_geo = sheet.row_values(0).index('GeoNames_id')
     for rownum in range(1, sheet.nrows):
