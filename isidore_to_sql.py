@@ -721,9 +721,26 @@ def create_schema(headers):
     #
     create_table("relationships",
             ["m_id text references manuscripts(ID)", "shelfmark text",
-                "rel_mss_id text references manuscripts(ID)","rel_mss_other text",
+                "rel_mss_id text references manuscripts(ID)", "rel_mss_other text",
                 "reason text"])
-
+    #
+    create_table("interpolations",
+            ["m_id text references manuscripts(ID)", "shelfmark text",
+                "interpolation text", "folia text", "description text"])
+    #
+    create_table("diagrams",
+            ["m_id text references manuscripts(ID)", "shelfmark text",
+                "diagram_type text", "folia text", "description text"])
+    #
+    create_table("eastertable",
+            ["m_id text references manuscripts(ID)", "shelfmark text",
+                "easter_table_type text", "folia text", "remarks text"])
+    #
+    create_table("annotations",
+            ["m_id text references manuscripts(ID)", "shelfmark text",
+                "number_of_annotations text", "amount text", "books text",
+                "language text", "remarks text"])
+                
 
 def create_table(table, columns):
      schema_out.write(f"DROP TABLE {table} CASCADE;\n")
