@@ -21,7 +21,8 @@ long_lat_patt = re.compile(r"([NSEW]) (\d+)° (\d+)' (\d+)'?'?")
 
 linked_tables = ["place_scaled", "date_scaled", "books_included", "content_type",
         "place_absolute", "physical_state_scaled", "script", "designed_as", "certainty",
-        "source_of_dating", "provenance_scaled"]
+        "source_of_dating", "provenance_scaled", "related_mss_in_the_database",
+        "related_mss_outside_of_the_database", "reason_for_relationship"]
 
 def xls_file(inputfiles, headerrow=0):
     for filename in inputfiles:
@@ -41,12 +42,14 @@ def xls_file(inputfiles, headerrow=0):
         source_of_dating = get_source_of_dating(wb)
         provenance_scaled = get_provenance_scaled(wb)
         location_details = get_location_details(wb)
+        viaf = get_viaf(wb)
+        librarys, manuscripts_librarys = get_current_locations(wb)
+        relationships = get_relationships(wb)
+#
         logfile = open('cdl_1.log','w')
         for row in location_details:
             logfile.write(f'{row}\n')
         logfile.close()
-        viaf = get_viaf(wb)
-        librarys, manuscripts_librarys = get_current_locations(wb)
 #
         result = []
         headers = []
@@ -84,7 +87,6 @@ def xls_file(inputfiles, headerrow=0):
         has_provenance_scaled = {}
         designed_as_last_key = 0
         includes_books = {}
-        #location_details = []
 
         sheet = wb.sheet_by_name('Mastersheet') 
         for colnum in range(sheet.ncols):
@@ -123,7 +125,6 @@ def xls_file(inputfiles, headerrow=0):
                             cell = cell[0:-2]
                         date = xlrd.xldate.xldate_as_datetime(int(cell),0)
                         try:
-                            stderr(f'{date.strftime("%Y-%m-%d")} (rownum: {rownum}) (colnum: {colnum})')
                             manuscript.append(f'{date.strftime("%Y-%m-%d")}')
                         except:
                             stderr(f'cell: {cell} (colnum: {colnum})')
@@ -356,6 +357,11 @@ def xls_file(inputfiles, headerrow=0):
                 output.write(f"{key}\t{prov}\n")
         output.write("\\.\n\n")
 
+        output.write("COPY relationships (m_id, shelfmark, rel_mss_id, rel_mss_other, reason) FROM stdin;\n")
+        for row in relationships:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
 
 def get_scaled_places(wb):
     teller = 0
@@ -525,6 +531,29 @@ def get_current_locations(wb):
     return librarys, manuscripts_librarys
 
 
+def get_relationships(wb):
+    pattern = re.compile(r'M\d\d\d\d')
+    relationships = []
+    sheet = wb.sheet_by_name('Relationships')
+    rel_mss_colnum = sheet.row_values(0).index('related mss.')
+    for rownum in range(1, sheet.nrows):
+        relation = []
+        for colnum in range(0,sheet.ncols-1):
+            cell = sheet.cell_value(rownum,colnum).strip()
+            if colnum==rel_mss_colnum:
+                if pattern.match(cell):
+                    relation.append(cell)
+                    relation.append("")
+                else:
+                    relation.append('\\N')
+                    relation.append(cell)
+            else:
+                relation.append(cell)
+        cell_parts = re.split(';',cell)
+        relationships.append(relation)
+    return relationships
+
+
 def string_to_dict(text):
     text_spl = str(text).split('+')
     for i in range(0,len(text_spl)):
@@ -689,6 +718,11 @@ def create_schema(headers):
     #
     create_table("manuscripts_provenance_scaled",
             ["m_id text references manuscripts(ID)","p_id integer references provenance_scaled(p_id)"])
+    #
+    create_table("relationships",
+            ["m_id text references manuscripts(ID)", "shelfmark text",
+                "rel_mss_id text references manuscripts(ID)","rel_mss_other text",
+                "reason text"])
 
 
 def create_table(table, columns):
