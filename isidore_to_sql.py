@@ -10,6 +10,12 @@ from pprint import pprint
 import roman;
 from roman import InvalidRomanNumeralError;
 
+# This script uses xlrd to read xlsx files.
+# According to https://xlrd.readthedocs.io/en/latest/index.html :
+# 'This library will no longer read anything other than .xls files'
+# In future a conversion to another library might be nescessary, for example: openpyxl
+# (https://foss.heptapod.net/openpyxl)
+
 output = None
 schema_out = None
 delimiter = ','
@@ -19,10 +25,19 @@ pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
 patt = re.compile(r'([^+)(\][]+)')
 long_lat_patt = re.compile(r"([NSEW]) (\d+)° (\d+)' (\d+)'?'?")
 
+# linked_tables: a list of columns in Mastersheet that are not added to the manuscripts table
+# in the database. There are other tabs with the same information as in these columns, all
+# linking to the manuscripts table.
 linked_tables = ["place_scaled", "date_scaled", "books_included", "content_type",
         "place_absolute", "physical_state_scaled", "script", "designed_as", "certainty",
         "source_of_dating", "provenance_scaled", "related_mss_in_the_database",
-        "related_mss_outside_of_the_database", "reason_for_relationship"]
+        "related_mss_outside_of_the_database", "reason_for_relationship", "annotations", "diagrams"]
+
+# ignore: a list of columns in mastersheet to be ignored. The data in these columns also
+# exists in other tabs.
+ignore = ["certainty", "related_mss_in_the_database", "related_mss_outside_of_the_database",
+        "reason_for_relationship", "annotations", "diagrams"]
+ 
 
 def xls_file(inputfiles, headerrow=0):
     for filename in inputfiles:
@@ -46,6 +61,7 @@ def xls_file(inputfiles, headerrow=0):
         librarys, manuscripts_librarys = get_current_locations(wb)
         relationships = get_relationships(wb)
         interpolations = get_interpolations(wb)
+        stderr(f'lengte interpolations: {len(interpolations[0])}')
         diagrams = get_diagrams(wb)
         easter_table = get_easter_table(wb)
         annotations = get_annotations(wb)
@@ -164,7 +180,7 @@ def xls_file(inputfiles, headerrow=0):
                             stderr(f'cell: {cell}')
                             stderr(f'abs?: {absolute_places[cell]}')
                             end_prog(1)
-                    elif headers[colnum]=="certainty":
+                    elif headers[colnum] in ignore:
                         manuscript.pop()
                     elif headers[colnum]=="date_scaled":
                         if not cell in scaled_dates:
@@ -363,6 +379,26 @@ def xls_file(inputfiles, headerrow=0):
 
         output.write("COPY relationships (m_id, shelfmark, rel_mss_id, rel_mss_other, reason) FROM stdin;\n")
         for row in relationships:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY interpolations (m_id, shelfmark, interpolation, folia, description) FROM stdin;\n")
+        for row in interpolations:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY diagrams (m_id, shelfmark, diagram_type, folia, description) FROM stdin;\n")
+        for row in diagrams:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY easter_table (m_id, shelfmark, easter_table_type, folia, remarks) FROM stdin;\n")
+        for row in easter_table:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY annotations (m_id, shelfmark, number_of_annotations, amount, books, language, remarks) FROM stdin;\n")
+        for row in annotations:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
@@ -569,11 +605,15 @@ def get_easter_table(wb):
     return get_default(wb.sheet_by_name('EasterTable'))
 
 
+def get_annotations(wb):
+    return get_default(wb.sheet_by_name('Annotations'))
+
+
 def get_default(sheet):
     defaults = []
     for rownum in range(1, sheet.nrows):
         relation = []
-        for colnum in range(0,sheet.ncols-1):
+        for colnum in range(0,sheet.ncols):
             cell = sheet.cell_value(rownum,colnum)
             if sheet.cell_type(rownum,colnum)==xlrd.XL_CELL_TEXT:
                 cell = cell.strip()
@@ -582,24 +622,11 @@ def get_default(sheet):
                     cell = str(cell)[0:-2]
             relation.append(cell)
         defaults.append(relation)
+        if not len(relation)==sheet.ncols:
+            stderr('lengte fout')
+            stderr(relation)
+            sys.exit(1)
     return defaults
-
-
-def get_annotations(wb):
-    annotations = []
-    sheet = wb.sheet_by_name('Annotations')
-    number_ann_colnum = sheet.row_values(0).index('Number of annotations')
-    for rownum in range(1, sheet.nrows):
-        annotation = []
-        for colnum in range(0,sheet.ncols-1):
-            cell = sheet.cell_value(rownum,colnum)
-            if colnum==number_ann_colnum:
-                cell = str(cell)[0:-2]
-            else:
-                cell = cell.strip()
-            annotation.append(cell)
-        annotations.append(annotation)
-    return annotations
 
 
 def string_to_dict(text):
@@ -780,7 +807,7 @@ def create_schema(headers):
             ["m_id text references manuscripts(ID)", "shelfmark text",
                 "diagram_type text", "folia text", "description text"])
     #
-    create_table("eastertable",
+    create_table("easter_table",
             ["m_id text references manuscripts(ID)", "shelfmark text",
                 "easter_table_type text", "folia text", "remarks text"])
     #
