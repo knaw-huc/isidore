@@ -45,6 +45,10 @@ def xls_file(inputfiles, headerrow=0):
         viaf = get_viaf(wb)
         librarys, manuscripts_librarys = get_current_locations(wb)
         relationships = get_relationships(wb)
+        interpolations = get_interpolations(wb)
+        diagrams = get_diagrams(wb)
+        easter_table = get_easter_table(wb)
+        annotations = get_annotations(wb)
 #
         logfile = open('cdl_1.log','w')
         for row in location_details:
@@ -549,9 +553,53 @@ def get_relationships(wb):
                     relation.append(cell)
             else:
                 relation.append(cell)
-        cell_parts = re.split(';',cell)
         relationships.append(relation)
     return relationships
+
+
+def get_interpolations(wb):
+    return get_default(wb.sheet_by_name('Interpolations'))
+
+
+def get_diagrams(wb):
+    return get_default(wb.sheet_by_name('Diagrams'))
+
+
+def get_easter_table(wb):
+    return get_default(wb.sheet_by_name('EasterTable'))
+
+
+def get_default(sheet):
+    defaults = []
+    for rownum in range(1, sheet.nrows):
+        relation = []
+        for colnum in range(0,sheet.ncols-1):
+            cell = sheet.cell_value(rownum,colnum)
+            if sheet.cell_type(rownum,colnum)==xlrd.XL_CELL_TEXT:
+                cell = cell.strip()
+            elif sheet.cell_type(rownum,colnum)==xlrd.XL_CELL_NUMBER:
+                if str(cell).endswith('.0'):
+                    cell = str(cell)[0:-2]
+            relation.append(cell)
+        defaults.append(relation)
+    return defaults
+
+
+def get_annotations(wb):
+    annotations = []
+    sheet = wb.sheet_by_name('Annotations')
+    number_ann_colnum = sheet.row_values(0).index('Number of annotations')
+    for rownum in range(1, sheet.nrows):
+        annotation = []
+        for colnum in range(0,sheet.ncols-1):
+            cell = sheet.cell_value(rownum,colnum)
+            if colnum==number_ann_colnum:
+                cell = str(cell)[0:-2]
+            else:
+                cell = cell.strip()
+            annotation.append(cell)
+        annotations.append(annotation)
+    return annotations
 
 
 def string_to_dict(text):
