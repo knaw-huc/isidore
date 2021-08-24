@@ -29,7 +29,9 @@ long_lat_patt = re.compile(r"([NSEW]) (\d+)° (\d+)' (\d+)'?'?")
 # in the database. There are other tabs with the same information as in these columns, all
 # linking to the manuscripts table.
 linked_tables = ["place_scaled", "date_scaled", "books_included", "content_type",
-        "place_absolute", "physical_state_scaled", "script", "designed_as", "certainty",
+        "place_absolute",
+        #"physical_state_scaled",
+        "script", "designed_as", "certainty",
         "source_of_dating", "provenance_scaled", "related_mss_in_the_database",
         "related_mss_outside_of_the_database", "reason_for_relationship", "annotations", "diagrams"]
 
@@ -65,6 +67,7 @@ def xls_file(inputfiles, headerrow=0):
         diagrams = get_diagrams(wb)
         easter_table = get_easter_table(wb)
         annotations = get_annotations(wb)
+        urls = get_urls(wb)
 #
         logfile = open('cdl_1.log','w')
         for row in location_details:
@@ -202,7 +205,7 @@ def xls_file(inputfiles, headerrow=0):
                         if not cell in physical_states:
                             physical_states.append(cell)
                         has_physical_state[m_id] = cell
-                        manuscript.pop()
+                        #manuscript.pop()
                     elif headers[colnum]=="script":
                         if not cell in scripts:
                             scripts_last_key += 1
@@ -351,7 +354,7 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(librarys[key]) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_library (m_id, shelfmark, lib_id) FROM stdin;\n")
+        output.write("COPY manuscript_current_places (m_id, shelfmark, lib_id) FROM stdin;\n")
         for row in manuscripts_librarys:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
@@ -382,12 +385,12 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY interpolations (m_id, shelfmark, interpolation, folia, description) FROM stdin;\n")
+        output.write("COPY interpolations (m_id, shelfmark, interpolation, folia, url, description) FROM stdin;\n")
         for row in interpolations:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY diagrams (m_id, shelfmark, diagram_type, folia, description) FROM stdin;\n")
+        output.write("COPY diagrams (m_id, shelfmark, diagram_type, folia, url, description) FROM stdin;\n")
         for row in diagrams:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
@@ -397,8 +400,13 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY annotations (m_id, shelfmark, number_of_annotations, amount, books, language, remarks) FROM stdin;\n")
+        output.write("COPY annotations (m_id, shelfmark, number_of_annotations, amount, books, language, url, remarks) FROM stdin;\n")
         for row in annotations:
+            output.write("\t".join(row) + "\n")
+        output.write("\\.\n\n")
+
+        output.write("COPY url (m_id, shelfmark, url_images, label_1, mirabileweb, trismegistos, fama, manuscripta_medica, jordanus, bstk_online, handschriftencensus, dhbm, other_links, label_2, iiif_manifest) FROM stdin;\n")
+        for row in urls:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
@@ -609,6 +617,10 @@ def get_annotations(wb):
     return get_default(wb.sheet_by_name('Annotations'))
 
 
+def get_urls(wb):
+    return get_default(wb.sheet_by_name('URL'))
+
+
 def get_default(sheet):
     defaults = []
     for rownum in range(1, sheet.nrows):
@@ -779,7 +791,7 @@ def create_schema(headers):
                 "Place_name text", "Country text", "Country_GeoNames text",
                 "Latitude real", "Longitude real", "GeoNames_id integer", "GeoNames_uri text"])
     #
-    create_table("manuscripts_library",
+    create_table("manuscript_current_places",
             ["m_id text references manuscripts(ID)", "shelfmark text", "lib_id integer references library(lib_id)"])
     #
     create_table("source_of_dating",
@@ -801,11 +813,11 @@ def create_schema(headers):
     #
     create_table("interpolations",
             ["m_id text references manuscripts(ID)", "shelfmark text",
-                "interpolation text", "folia text", "description text"])
+                "interpolation text", "folia text", "url text", "description text"])
     #
     create_table("diagrams",
             ["m_id text references manuscripts(ID)", "shelfmark text",
-                "diagram_type text", "folia text", "description text"])
+                "diagram_type text", "folia text", "url text", "description text"])
     #
     create_table("easter_table",
             ["m_id text references manuscripts(ID)", "shelfmark text",
@@ -814,7 +826,14 @@ def create_schema(headers):
     create_table("annotations",
             ["m_id text references manuscripts(ID)", "shelfmark text",
                 "number_of_annotations text", "amount text", "books text",
-                "language text", "remarks text"])
+                "language text", "url text", "remarks text"])
+    #
+    create_table("url",
+            ["m_id text references manuscripts(ID)", "shelfmark text",
+                "url_images text", "label_1 text", "mirabileweb text",
+                "trismegistos text", "fama text", "manuscripta_medica text",
+                "jordanus text", "bstk_online text", "handschriftencensus text",
+                "dhbm text", "other_links text", "label_2 text", "iiif_manifest text"])
                 
 
 def create_table(table, columns):
