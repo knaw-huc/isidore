@@ -263,6 +263,10 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\n")
         output.write("\\.\n\n")
 
+    # think of something to get the headers from the xlsx
+    # instead of adjusting them manually when (once again)
+    # the sheet is changed
+    # see also: create_schema
         output.write("COPY scaled_places (place_id, place, gps_latitude, gps_longitude, latitude, longitude) FROM stdin;\n")
         for (place, place_data) in scaled_places.items():
             output.write(f"{place_data[0]}\t{place}\t{place_data[1]}\t{place_data[2]}\t{place_data[5]}\t{place_data[6]}\n")
@@ -344,9 +348,11 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2) FROM stdin;\n")
+        output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2,Biblissima_author_URL) FROM stdin;\n")
+        # Attention:
+        # due to 3 empty last columns row has to be shortened!!!
         for row in viaf:
-            output.write("\t".join(row) + "\n")
+            output.write("\t".join(row[0:-3]) + "\n")
         output.write("\\.\n\n")
 
         output.write("COPY library (lib_id, lib_name, GPS_latitude, GPS_longitude, Place_name, Country, Country_GeoNames, Latitude, Longitude, GeoNames_id, GeoNames_uri) FROM stdin;\n")
@@ -405,7 +411,7 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY url (m_id, shelfmark, url_images, label, mirabileweb, trismegistos, fama, manuscripta_medica, jordanus, bstk_online, handschriftencensus, dhbm, other_links, label_other_links, iiif_manifest, copyright_status, permission_from_the_library, image_published) FROM stdin;\n")
+        output.write("COPY url (m_id, shelfmark, url_images, label, Biblissima_author_URL, mirabileweb, trismegistos, fama, manuscripta_medica, jordanus, bstk_online, handschriftencensus, dhbm, Bibliotheca_legum, Capitularia, other_links, label_other_links, iiif_manifest, copyright_status, permission_from_the_library, image_published) FROM stdin;\n")
         for row in urls:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
@@ -720,6 +726,10 @@ def flatten(lijst):
 
 
 def create_schema(headers):
+    # think of something to get the headers from the xlsx
+    # instead of adjusting them manually when (once again)
+    # the sheet is changed
+    # see also:  line 265
     create_table("manuscripts", headers)
     #
     create_table("scaled_places",
@@ -783,7 +793,9 @@ def create_schema(headers):
     create_table("manuscripts_viaf",
             ["ID text references manuscripts(ID)", "shelfmark text",
                 "additional_content_scaled text", "VIAF_ID text",
-                "VIAF_URL text", "Full_name_1 text", "Full_name_2 text"])
+                "VIAF_URL text", "Full_name_1 text", "Full_name_2 text",
+                "Biblissima_author_URL text"
+                ])
     #
     create_table("library",
             ["lib_id integer primary key", "lib_name text",
@@ -830,12 +842,14 @@ def create_schema(headers):
     #
     create_table("url",
             ["m_id text references manuscripts(ID)", "shelfmark text",
-                "url_images text", "label text", "mirabileweb text",
+                "url_images text", "label text", "Biblissima_author_URL text", "mirabileweb text",
                 "trismegistos text", "fama text", "manuscripta_medica text",
                 "jordanus text", "bstk_online text", "handschriftencensus text",
-                "dhbm text", "other_links text", "label_other_links text",
+                "dhbm text", "Bibliotheca_legum text", "Capitularia text", 
+                "other_links text", "label_other_links text",
                 "iiif_manifest text", "copyright_status text",
                 "permission_from_the_library text", "image_published text"])
+            
                 
 
 def create_table(table, columns):
