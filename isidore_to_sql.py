@@ -908,7 +908,7 @@ def arguments():
     ap = argparse.ArgumentParser(description='Read isidore xlsx to make postgres import file')
     ap.add_argument('-i', '--inputfile',
                     help="inputfile",
-                    default = "20210212_manuscripts_mastersheet.xlsx" )
+                    default = "manuscripts_mastersheet.xlsx" )
     ap.add_argument('-o', '--outputfile',
                     help="outputfile",
                     default = f"isidore_data_{today}.sql" )
