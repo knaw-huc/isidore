@@ -349,10 +349,11 @@ def xls_file(inputfiles, headerrow=0):
         output.write("\\.\n\n")
 
         output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2,Biblissima_author_URL) FROM stdin;\n")
-        # Attention:
-        # due to 3 empty last columns row has to be shortened!!!
+        # stderr('Attention:')
+        # stderr('due to 3 empty last columns (table VIAF) row has to be shortened!!!')
+        # repaired in xlsx (3-12-2021)
         for row in viaf:
-            output.write("\t".join(row[0:-3]) + "\n")
+            output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
         output.write("COPY library (lib_id, lib_name, GPS_latitude, GPS_longitude, Place_name, Country, Country_GeoNames, Latitude, Longitude, GeoNames_id, GeoNames_uri) FROM stdin;\n")
