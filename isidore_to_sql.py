@@ -760,7 +760,7 @@ def create_schema(headers):
                 "date_id integer references scaled_dates(date_id)"])
     #
     create_table("books",
-            ["id int primary key", "roman text"])
+            ["id int primary key", "roman text", "sections integer"])
     #
     create_table("manuscripts_books_included",
             ["m_id text references manuscripts(ID)",
@@ -909,7 +909,7 @@ def arguments():
     ap = argparse.ArgumentParser(description='Read isidore xlsx to make postgres import file')
     ap.add_argument('-i', '--inputfile',
                     help="inputfile",
-                    default = "manuscripts_mastersheet.xlsx" )
+                    default = "manuscripts_mastersheet.xls" )
     ap.add_argument('-o', '--outputfile',
                     help="outputfile",
                     default = f"isidore_data_{today}.sql" )
