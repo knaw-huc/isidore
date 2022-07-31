@@ -24,6 +24,7 @@ pattern = re.compile(r'([^(]*)\(([^)]*)\)([^(]*)')
 pattern_2 = re.compile(r'([^[]*)\[([^]]*)]([^[]*)')
 patt = re.compile(r'([^+)(\][]+)')
 long_lat_patt = re.compile(r"([NSEW]) (\d+)° (\d+)' (\d+)'?'?")
+manuscript_ids = []
 
 # linked_tables: a list of columns in Mastersheet that are not added to the manuscripts table
 # in the database. There are other tabs with the same information as in these columns, all
@@ -54,6 +55,7 @@ def xls_file(inputfiles, headerrow=0):
         else:
             wb = xlrd.open_workbook(filename,headerrow,encoding_override="utf-8")
 #
+        get_manuscript_ids(wb)
         scaled_places = get_scaled_places(wb)
         absolute_places = get_absolute_places(wb)
         source_of_dating = get_source_of_dating(wb)
@@ -76,6 +78,7 @@ def xls_file(inputfiles, headerrow=0):
 #
         result = []
         headers = []
+        # next line: change this to something durable
         scaled_place_last_key = 13
         has_scaled_place = {}
         absolute_place_last_key = 0
@@ -418,7 +421,17 @@ def xls_file(inputfiles, headerrow=0):
         output.write("\\.\n\n")
 
 
+
+def get_manuscript_ids(wb):
+    sheet = wb.sheet_by_name('Mastersheet') 
+    for rownum in range((headerrow+1), sheet.nrows):
+        m_id = f"{sheet.cell_value(rownum,0)}"
+        manuscript_ids.append(m_id)
+
 def get_scaled_places(wb):
+    # TODO: use the 0-column with the m-ids
+    # but check the m-id in the table manuscript-ids
+    # check_m_id(m_id, "Geo_placescaled", rownum):
     teller = 0
     scaled_places = {}
     sheet = wb.sheet_by_name('Geo_placescaled') 
@@ -450,6 +463,9 @@ def get_scaled_places(wb):
 
 
 def get_absolute_places(wb):
+    # TODO: use the 0-column with the m-ids
+    # but check the m-id in the table manuscript-ids
+    # check_m_id(m_id, "Geo_placeabsolute", rownum):
     teller = 0
     absolute_places = {}
     sheet = wb.sheet_by_name('Geo_placeabsolute') 
@@ -517,6 +533,9 @@ def get_location_details(wb):
         return []
     for rownum in range(1, sheet.nrows):
         m_id = f"{sheet.cell_value(rownum,0).strip()}"
+        if not m_id in manuscript_ids:
+            stderr(f'{m_id} in tab "content", row {rownum} not found on "Mastersheet": entry skipped')
+            continue
         mat_type = f"{sheet.cell_value(rownum,col_m_t).strip()}"
         books_incl = f"{sheet.cell_value(rownum,col_b_i).strip()}"
         cont_detail = sheet.cell_value(rownum,col_det)
@@ -540,7 +559,11 @@ def get_viaf(wb):
     viaf = []
     sheet = wb.sheet_by_name('VIAF') 
     col_viaf_id = sheet.row_values(0).index('VIAF ID')
+    col_m_id = sheet.row_values(0).index('ID')
     for rownum in range(1, sheet.nrows):
+        m_id = sheet.cell_value(rownum,col_m_id)
+        if not check_m_id(m_id, "VIAF", rownum):
+            continue
         placename = ''
         row = []
         for colnum in range(sheet.ncols):
@@ -562,7 +585,9 @@ def get_current_locations(wb):
     sheet = wb.sheet_by_name('Geo_currentlocation')
     col_shelf = sheet.row_values(0).index('Shelfmark')
     col_geo = sheet.row_values(0).index('GeoNames_id')
+    col_m_id = sheet.row_values(0).index('ID')
     for rownum in range(1, sheet.nrows):
+        m_id = sheet.cell_value(rownum,col_m_id)
         cell = f"{sheet.cell_value(rownum,col_shelf)}"
         library = ','.join(cell.split(',')[0:2])
         if library=='Ithaca, Cornell University' or library=='Salzburg, St. Peter':
@@ -570,6 +595,8 @@ def get_current_locations(wb):
         if library not in librarys:
             teller += 1
             librarys[library] = [str(teller), library]
+            if not check_m_id(m_id, "Geo_currentlocation", rownum):
+                continue
             for colnum in range(2, sheet.ncols):
                 cell = f"{sheet.cell_value(rownum,colnum)}"
                 cell_type = sheet.cell_type(rownum,colnum)
@@ -581,7 +608,7 @@ def get_current_locations(wb):
                     if cell=='':
                         cell = '0'
                 librarys[library].append(cell)
-        manuscripts_librarys.append( [ f"{sheet.cell_value(rownum,0)}",
+        manuscripts_librarys.append( [ f"{sheet.cell_value(rownum,col_m_id)}",
             f"{sheet.cell_value(rownum,col_shelf)}", librarys[library][0] ] )
     return librarys, manuscripts_librarys
 
@@ -591,12 +618,18 @@ def get_relationships(wb):
     relationships = []
     sheet = wb.sheet_by_name('Relationships')
     rel_mss_colnum = sheet.row_values(0).index('related mss.')
+    col_m_id = sheet.row_values(0).index('ID')
     for rownum in range(1, sheet.nrows):
+        m_id = sheet.cell_value(rownum,col_m_id)
+        if not check_m_id(m_id, "Relationships", rownum):
+            continue
         relation = []
         for colnum in range(0,sheet.ncols-1):
             cell = sheet.cell_value(rownum,colnum).strip()
             if colnum==rel_mss_colnum:
                 if pattern.match(cell):
+                    if not check_m_id(cell, "Relationships", rownum):
+                        continue
                     relation.append(cell)
                     relation.append("")
                 else:
@@ -630,7 +663,11 @@ def get_urls(wb):
 
 def get_default(sheet):
     defaults = []
+    col_m_id = sheet.row_values(0).index('ID')
     for rownum in range(1, sheet.nrows):
+        m_id = sheet.cell_value(rownum,col_m_id)
+        if not check_m_id(m_id, sheet.name, rownum):
+            continue
         relation = []
         for colnum in range(0,sheet.ncols):
             cell = sheet.cell_value(rownum,colnum)
@@ -646,6 +683,13 @@ def get_default(sheet):
             stderr(relation)
             sys.exit(1)
     return defaults
+
+
+def check_m_id(m_id,sheet_name,rownum):
+    if not m_id in manuscript_ids:
+        stderr(f'{m_id} on tab "{sheet_name}" row {rownum+1}, not found on "Mastersheet": entry skipped')
+        return False
+    return True
 
 
 def string_to_dict(text):
