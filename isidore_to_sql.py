@@ -351,7 +351,7 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2,Biblissima_author_URL) FROM stdin;\n")
+        output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2,Biblissima_author_URL, Wikidata_author_url) FROM stdin;\n")
         # stderr('Attention:')
         # stderr('due to 3 empty last columns (table VIAF) row has to be shortened!!!')
         # repaired in xlsx (3-12-2021)
@@ -415,7 +415,7 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY url (m_id, shelfmark, url_images, label, Biblissima_author_URL, mirabileweb, trismegistos, fama, manuscripta_medica, jordanus, bstk_online, handschriftencensus, dhbm, Bibliotheca_legum, Capitularia, other_links, label_other_links, iiif_manifest, copyright_status, permission_from_the_library, image_published) FROM stdin;\n")
+        output.write("COPY url (m_id, shelfmark, url_images, label, Biblissima_author_URL, mirabileweb, trismegistos, fama, manuscripta_medica, jordanus, bstk_online, handschriftencensus, dhbm, Bibliotheca_legum, Capitularia, other_links, label_other_links, iiif_manifest, copyright_status) FROM stdin;\n")
         for row in urls:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
@@ -839,7 +839,7 @@ def create_schema(headers):
             ["ID text references manuscripts(ID)", "shelfmark text",
                 "additional_content_scaled text", "VIAF_ID text",
                 "VIAF_URL text", "Full_name_1 text", "Full_name_2 text",
-                "Biblissima_author_URL text"
+                "Biblissima_author_URL text, Wikidata_author_url text"
                 ])
     #
     create_table("library",
