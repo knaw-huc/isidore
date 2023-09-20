@@ -43,6 +43,7 @@ ignore = ["certainty", "related_mss_in_the_database", "related_mss_outside_of_th
  
 
 def xls_file(inputfiles, headerrow=0):
+    other_headers = {}
     for filename in inputfiles:
         # after converting de xlsx sheet to xls, the color information can be extracted and used
         # not sure if we will do this
@@ -61,7 +62,7 @@ def xls_file(inputfiles, headerrow=0):
         source_of_dating = get_source_of_dating(wb)
         provenance_scaled = get_provenance_scaled(wb)
         location_details = get_location_details(wb)
-        viaf = get_viaf(wb)
+        viaf,other_headers['viaf'] = get_viaf(wb)
         librarys, manuscripts_librarys = get_current_locations(wb)
         relationships = get_relationships(wb)
         interpolations = get_interpolations(wb)
@@ -115,11 +116,12 @@ def xls_file(inputfiles, headerrow=0):
         includes_books = {}
 
         sheet = wb.sheet_by_name('Mastersheet') 
-        for colnum in range(sheet.ncols):
-            if sheet.cell_value(headerrow,colnum) != '':
-                headers.append(re.sub(r'[ -/]+','_',sheet.cell_value(headerrow,colnum)).strip('_'))
-            else:
-                headers.append(f"empty{colnum}")
+        headers = get_column_headers(sheet,headerrow)
+#        for colnum in range(sheet.ncols):
+#            if sheet.cell_value(headerrow,colnum) != '':
+#                headers.append(re.sub(r'[ -/]+','_',sheet.cell_value(headerrow,colnum)).strip('_'))
+#            else:
+#                headers.append(f"empty{colnum}")
         teller = 0
         for rownum in range((headerrow+1), sheet.nrows):
             manuscript = []
@@ -177,7 +179,7 @@ def xls_file(inputfiles, headerrow=0):
                         if not cell in absolute_places:
                             stderr(f'add to absolute_places: {cell}')
                             absolute_place_last_key += 1
-                            absolute_places[cell] = absolute_place_last_key
+                            absolute_places[cell] = [absolute_place_last_key]
                         try:
                             has_absolute_place[m_id] = [absolute_places.get(cell)[0]]
                             has_absolute_place[m_id].append(f"{sheet.cell_value(rownum,colnum+1)}")
@@ -252,7 +254,7 @@ def xls_file(inputfiles, headerrow=0):
             if not header in linked_tables:
                 headers_2.append(header + " text")
         headers_2[0] += " primary key"
-        create_schema(headers_2)
+        create_schema(headers_2,other_headers)
 
         headers_2 = []
         for header in headers:
@@ -351,7 +353,10 @@ def xls_file(inputfiles, headerrow=0):
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
 
-        output.write("COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2,Biblissima_author_URL, Wikidata_author_url) FROM stdin;\n")
+        # viaf
+        header_string = ", ".join(other_headers['viaf'])
+        output.write(f"COPY manuscripts_viaf ({header_string}) FROM stdin;\n")
+#        output.write(f"COPY manuscripts_viaf (ID, shelfmark, additional_content_scaled, VIAF_ID, VIAF_URL, Full_name_1, Full_name_2,Biblissima_author_URL, Wikidata_author_url) FROM stdin;\n")
         # stderr('Attention:')
         # stderr('due to 3 empty last columns (table VIAF) row has to be shortened!!!')
         # repaired in xlsx (3-12-2021)
@@ -419,6 +424,16 @@ def xls_file(inputfiles, headerrow=0):
         for row in urls:
             output.write("\t".join(row) + "\n")
         output.write("\\.\n\n")
+
+
+def get_column_headers(sheet,headerrow):
+    headers = []
+    for colnum in range(sheet.ncols):
+        if sheet.cell_value(headerrow,colnum) != '':
+            headers.append(re.sub(r'[ -/]+','_',sheet.cell_value(headerrow,colnum)).strip('_'))
+        else:
+            headers.append(f"empty{colnum}")
+    return headers
 
 
 
@@ -558,6 +573,7 @@ def get_location_details(wb):
 def get_viaf(wb):
     viaf = []
     sheet = wb.sheet_by_name('VIAF') 
+    headers = get_column_headers(sheet,0)
     col_viaf_id = sheet.row_values(0).index('VIAF ID')
     col_m_id = sheet.row_values(0).index('ID')
     for rownum in range(1, sheet.nrows):
@@ -575,7 +591,7 @@ def get_viaf(wb):
                     cell = '0'
             row.append(cell)
         viaf.append(row)
-    return viaf
+    return viaf,headers
 
 
 def get_current_locations(wb):
@@ -770,7 +786,7 @@ def flatten(lijst):
     return res
 
 
-def create_schema(headers):
+def create_schema(headers,other_headers):
     # think of something to get the headers from the xlsx
     # instead of adjusting them manually when (once again)
     # the sheet is changed
@@ -835,12 +851,15 @@ def create_schema(headers):
                 "books_included text", "details text", "locations text"])
     #
     schema_out.write('/* VIAF_ID is text: some of these ids have more digits than either integer or bigint can handle! */\n')
+    headers = list(map(lambda x: x + " text", other_headers['viaf'][1:]))
     create_table("manuscripts_viaf",
-            ["ID text references manuscripts(ID)", "shelfmark text",
-                "additional_content_scaled text", "VIAF_ID text",
-                "VIAF_URL text", "Full_name_1 text", "Full_name_2 text",
-                "Biblissima_author_URL text, Wikidata_author_url text"
-                ])
+            ["ID text references manuscripts(ID)"] + headers)
+
+#            , "shelfmark text",
+#                "additional_content_scaled text", "VIAF_ID text",
+#                "VIAF_URL text", "Full_name_1 text", "Full_name_2 text",
+#                "Biblissima_author_URL text, Wikidata_author_url text"
+#                ])
     #
     create_table("library",
             ["lib_id integer primary key", "lib_name text",
