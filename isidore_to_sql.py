@@ -58,7 +58,7 @@ def xls_file(inputfiles, headerrow=0):
 #
         get_manuscript_ids(wb)
         scaled_places = get_scaled_places(wb)
-        absolute_places = get_absolute_places(wb)
+        absolute_places,absolute_place_last_key = get_absolute_places(wb)
         source_of_dating = get_source_of_dating(wb)
         provenance_scaled = get_provenance_scaled(wb)
         location_details = get_location_details(wb)
@@ -82,7 +82,6 @@ def xls_file(inputfiles, headerrow=0):
         # next line: change this to something durable
         scaled_place_last_key = 13
         has_scaled_place = {}
-        absolute_place_last_key = 0
         has_absolute_place = {}
         scaled_dates = {
 		'7th c.': [70,600,699],
@@ -179,7 +178,9 @@ def xls_file(inputfiles, headerrow=0):
                         if not cell in absolute_places:
                             stderr(f'add to absolute_places: {cell}')
                             absolute_place_last_key += 1
-                            absolute_places[cell] = [absolute_place_last_key]
+                            stderr(absolute_places)
+                            absolute_places[cell] = [absolute_place_last_key,cell,'','','','','','0.0','0.0','','']
+                            stderr(absolute_places)
                         try:
                             has_absolute_place[m_id] = [absolute_places.get(cell)[0]]
                             has_absolute_place[m_id].append(f"{sheet.cell_value(rownum,colnum+1)}")
@@ -512,7 +513,7 @@ def get_absolute_places(wb):
     for k in sorted(absolute_places.keys(), key=str.casefold):
         teller += 1
         absolute_places[k][0] = teller
-    return absolute_places
+    return absolute_places,teller
 
 def get_source_of_dating(wb):
     source_of_dating = []
